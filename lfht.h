@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include <strstream>
+#include <sstream>
 
 #include "atomic.h"
 
@@ -82,8 +82,11 @@ namespace NLFHT {
     template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
     class Table {
     private:
-        typedef E TEqual;
-        typedef H THash;
+        typedef E Equal;
+        typedef H Hash;
+
+        Equal m_equal;
+        Hash m_hash;
 
         typedef Entry<RK1, RK2, RV> EntryT;
         typedef Table<H, E, RK1, RK2, RV> TableT;
@@ -107,7 +110,7 @@ namespace NLFHT {
         TableT *volatile m_next;
         TableT *volatile m_nextToDelete;
 
-        SpinLock Lock;
+        SpinLock m_lock;
 
     public:
 
@@ -133,11 +136,13 @@ namespace NLFHT {
             m_maxProbeCnt = (size_t)(1.5 * log((double)m_size));
         }
 
-        bool IsFull() {
+        bool IsFull()
+        {
             return m_isFullFlag;
         }
 
-        TableT* GetNext() {
+        TableT* GetNext()
+        {
             return m_next;
         }
 
@@ -229,7 +234,7 @@ namespace NLFHT {
         char m_padding[CACHE_LINE_SIZE];
 
     public:
-        TGuard() :
+        Guard() :
             m_next(0),
             m_owner(NO_OWNER),
             m_guardedTable(NO_TABLE),
@@ -242,7 +247,7 @@ namespace NLFHT {
             m_owner = NO_OWNER;
         }
 
-        void GuardTable(TAtomicBase tableNumber) {
+        void GuardTable(AtomicBase tableNumber) {
             m_guardedTable = tableNumber;
         }
 
@@ -257,89 +262,90 @@ namespace NLFHT {
 
     class GuardManager {
     private:
-        Guard *volatile Head;
+        Guard *volatile m_head;
     public:
-        GuardManager() :
-            Head(0)
+        GuardManager()
+            : m_head(0)
         {
         }
 
-        TGuard* AcquireGuard(size_t owner) {
-            for (TGuard* current = Head; current; current = current->Next)
-                if (current->Owner == TGuard::NO_OWNER)
-                    if (AtomicCas(&current->Owner, owner, TGuard::NO_OWNER))
+        Guard* AcquireGuard(size_t owner) {
+            for (Guard* current = m_head; current; current = current->m_next)
+                if (current->m_owner == Guard::NO_OWNER)
+                    if (AtomicCas(&current->m_owner, owner, Guard::NO_OWNER))
                         return current;
             return CreateGuard(owner);
         }
 
         size_t GetFirstGuardedTable() {
-            size_t result = TGuard::NO_TABLE;
-            for (TGuard* current = Head; current; current = current->Next)
-                if (current->Owner != TGuard::NO_OWNER)
-                    result = Min(result, current->GuardedTable);
+            size_t result = Guard::NO_TABLE;
+            for (Guard* current = m_head; current; current = current->m_next)
+                if (current->m_owner != Guard::NO_OWNER)
+                    result = Min(result, current->m_guardedTable);
             return result;
         }
 
         size_t TotalCopyWrites() {
             size_t result = 0;
-            for (TGuard* current = Head; current; current = current->Next)
-                result += current->CopyWrites;
+            for (Guard* current = m_head; current; current = current->m_next)
+                result += current->m_copyWrites;
             return result;
         }
 
         size_t TotalPutWrites() {
             size_t result = 0;
-            for (TGuard* current = Head; current; current = current->Next)
-                result += current->PutWrites;
+            for (Guard* current = m_head; current; current = current->m_next)
+                result += current->m_putWrites;
             return result;
         }
 
         void ResetCounters() {
-            for (TGuard* current = Head; current; current = current->Next)
-                current->CopyWrites = current->PutWrites = 0;
+            for (Guard* current = m_head; current; current = current->m_next)
+                current->m_copyWrites = current->m_putWrites = 0;
         }
 
     private:
-        TGuard* CreateGuard(TAtomicBase owner) {
-            TGuard* guard = new TGuard;
-            guard->Owner = owner;
+        Guard* CreateGuard(AtomicBase owner) {
+            Guard* guard = new Guard;
+            guard->m_owner = owner;
             while (true) {
-                guard->Next = Head;
-                if (AtomicCas(&Head, guard, guard->Next))
+                guard->m_next = m_head;
+                if (AtomicCas(&m_head, guard, guard->m_next))
                    break;
             } 
             return guard;
         }
     };
+}
 
-};
-
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-class TLFHashTable {
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+class LFHashTable {
 private:    
-    typedef H THash;
-    typedef E TEqual;
+    typedef H Hash;
+    typedef E Equal;
 
-    THash Hash;
-    TEqual Equal;
+    Hash m_hash;
+    Equal m_equal;
 
-    typedef NLFHT::TTable<H, E, RK1, RK2, RV> TTable;
-    friend class NLFHT::TTable<H, E, RK1, RK2, RV>;
+    typedef NLFHT::Table<H, E, RK1, RK2, RV> Table;
+    friend class NLFHT::Table<H, E, RK1, RK2, RV>;
 
-    TAtomic TableNumber;
-    TAtomic TableToDeleteNumber;
+    Atomic m_tableNumber;
+    Atomic m_tableToDeleteNumber;
 
-    static THREAD_LOCAL NLFHT::TGuard* Guard;
-    NLFHT::TGuardManager GuardManager;
+    static THREAD_LOCAL NLFHT::Guard* m_guard;
+    NLFHT::GuardManager m_guardManager;
 
-    TTable *volatile Head;
-    TTable *volatile ToDelete;
+    Table *volatile m_head;
+    Table *volatile m_toDelete;
+    double m_density;
+    Atomic m_size;
 
 public:
-    typedef NLFHT::TEntry<RK1, RK2, RV> TEntry;
-    typedef NLFHT::TConstIterator<H, E, RK1, RK2, RV> TConstIterator; 
+    typedef NLFHT::Entry<RK1, RK2, RV> Entry;
+    typedef NLFHT::ConstIterator<H, E, RK1, RK2, RV> ConstIterator;
 
-    struct TPutCondition {
+    struct PutCondition {
         enum EWhenToPut {
             ALWAYS,
             IF_ABSENT,
@@ -347,48 +353,54 @@ public:
             IF_MATCHES
         };
 
-        EWhenToPut When;
-        TAtomicBase Value;
+        EWhenToPut m_when;
+        AtomicBase m_value;
 
-        TPutCondition(EWhenToPut when = ALWAYS, TAtomicBase value = TEntry::NO_VALUE) :
-            When(when),
-            Value(value)
+        PutCondition(EWhenToPut when = ALWAYS, AtomicBase value = Entry::NO_VALUE)
+            : m_when(when)
+            , m_value(value)
         {
         } 
 
         std::string ToString() {
-            std::strstream tmp;
-            if (When == ALWAYS)
+            std::stringstream tmp;
+            if (m_when == ALWAYS)
                 tmp << "ALWAYS";
-            else if (When == IF_ABSENT)
+            else if (m_when == IF_ABSENT)
                 tmp << "IF_ABSENT";
-            else if (When == IF_EXISTS)
+            else if (m_when == IF_EXISTS)
                 tmp << "IF_EXISTS";
             else 
                 tmp << "IF_MATCHES";
-            tmp << " with " << TEntry::ValueToString(Value);
+            tmp << " with " << Entry::ValueToString(m_value);
             return tmp.str();
         }
     };
 
-    double Density;
-
 public:
-    TLFHashTable(double density, size_t initialSize, const THash& hash = THash(), const TEqual& equal = TEqual());
+    LFHashTable(double density, size_t initialSize, const Hash& hash = Hash(), const Equal& equal = Equal());
+    LFHashTable();
+    LFHashTable(size_t initialSize);
 
-    TAtomicBase Get(TAtomic key);
+    AtomicBase Get(Atomic key);
+    bool Find(Atomic key, Atomic& value);
     // returns true if condition was matched
-    bool Put(TAtomic key, TAtomic value, TPutCondition condition = TPutCondition());
-    bool PutIfMatch(TAtomicBase key, TAtomicBase oldValue, TAtomicBase newValue);
-    bool PutIfAbsent(TAtomicBase key, TAtomicBase value);
-    bool PutIfExists(TAtomicBase key, TAtomicBase value); 
+    bool Put(Atomic key, Atomic value, PutCondition condition = PutCondition());
+    bool PutIfMatch(AtomicBase key, AtomicBase oldValue, AtomicBase newValue);
+    bool PutIfAbsent(AtomicBase key, AtomicBase value);
+    bool PutIfExists(AtomicBase key, AtomicBase value);
     // returns true if key was really deleted
-    bool Delete(TAtomic key);
+    bool Delete(Atomic key);
+    void Clear();
+    inline size_t Size() const
+    {
+        return m_size;
+    }
 
-    TConstIterator Begin() const;
+    ConstIterator Begin() const;
 
-    void Print(std::ofstream& ostr);
-    void Trace(std::ofstream& ostr, const char* format, ...);
+    void Print(std::ostream& ostr);
+    void Trace(std::ostream& ostr, const char* format, ...);
 
 private:
     void StopGuarding(); 
@@ -397,122 +409,122 @@ private:
 };
 
 namespace NLFHT {
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    TEntry<RK1, RK2, RV>* TTable <H, E, RK1, RK2, RV>::LookUp(TAtomic key, size_t hash, TAtomicBase& foundKey) {
-        YASSERT(key != TEntryT::NO_KEY);
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    Entry<RK1, RK2, RV>* Table <H, E, RK1, RK2, RV>::LookUp(Atomic key, size_t hash, AtomicBase& foundKey) {
+        assert(key != EntryT::NO_KEY);
 #ifdef TRACE
-        Trace(Cerr, "LookUp for key \"%s\"\n", ~TEntryT::KeyToString(key));
+        Trace(std::cerr, "LookUp for key \"%s\"\n", ~EntryT::KeyToString(key));
 #endif
 
-        size_t i = hash & (Size - 1);
+        size_t i = hash & (m_size - 1);
         size_t probesCnt = 0; 
 
 #ifdef TRACE
-        Trace(Cerr, "Start from entry %zd\n", i);
+        Trace(std::cerr, "Start from entry %zd\n", i);
 #endif
-        foundKey = TEntryT::NO_KEY;
+        foundKey = EntryT::NO_KEY;
         do {
-            TAtomicBase currentKey = Data[i].Key;
-            if (currentKey != TEntryT::TOMBSTONE) {
-                if (currentKey == TEntryT::NO_KEY) {
+            AtomicBase currentKey = m_data[i].m_key;
+            if (currentKey != EntryT::TOMBSTONE) {
+                if (currentKey == EntryT::NO_KEY) {
 #ifdef TRACE
-                    Trace(Cerr, "Found empty entry %zd\n", i);
+                    Trace(std::cerr, "Found empty entry %zd\n", i);
 #endif
-                    return &Data[i];
+                    return &m_data[i];
                 }
-                if (Parent->Equal(currentKey, key)) {
+                if (m_parent->m_equal(currentKey, key)) {
 #ifdef TRACE
-                    Trace(Cerr, "Found key\n");
+                    Trace(std::cerr, "Found key\n");
 #endif            
                     foundKey = key;
-                    return &Data[i]; 
+                    return &m_data[i];
                 }
             }
 
-            i++;
-            probesCnt++;
-            i &= (Size - 1);
+            ++i;
+            ++probesCnt;
+            i &= (m_size - 1);
         }
-        while (probesCnt < MaxProbeCnt);
+        while (probesCnt < m_maxProbeCnt);
 
 #ifdef TRACE
-        Trace(Cerr, "No empty entries in table\n");
+        Trace(std::cerr, "No empty entries in table\n");
 #endif    
         // Variable value is changed once, thus
         // we have only one cache fault for thread.
         // Better then IsFullFlag = true
-        if (!IsFullFlag)
-            IsFullFlag = true;
+        if (!m_isFullFlag)
+            m_isFullFlag = true;
 
         return 0;
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TTable<H, E, RK1, RK2, RV>::CreateNext() {
-        Lock.Acquire();
-        if (Next) {
-            Lock.Release();
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void Table<H, E, RK1, RK2, RV>::CreateNext() {
+        m_lock.Acquire();
+        if (m_next) {
+            m_lock.Release();
             return;
         }
 #ifdef TRACE
-        Trace(Cerr, "CreateNext\n");
+        Trace(std::cerr, "CreateNext\n");
 #endif
 
-        size_t tcw = Parent->GuardManager.TotalCopyWrites();
-        size_t tpw = Parent->GuardManager.TotalPutWrites();
-        size_t nextSize = tcw > tpw ? 2 * Size : Size;
-        Next = new TTableT(Parent, nextSize);
+        size_t tcw = m_parent->m_guardManager.TotalCopyWrites();
+        size_t tpw = m_parent->m_guardManager.TotalPutWrites();
+        size_t nextSize = tcw > tpw ? 2 * m_size : m_size;
+        m_next = new TableT(m_parent, nextSize);
 #ifdef TRACE
-        Trace(Cerr, "Table done\n");
+        Trace(std::cerr, "Table done\n");
 #endif
-        CopyTaskSize = 2 * (Size / (size_t)(0.3 * Next->Size + 1));
-        Parent->GuardManager.ResetCounters();
+        m_copyTaskSize = 2 * (m_size / (size_t)(0.3 * m_next->m_size + 1));
+        m_parent->m_guardManager.ResetCounters();
 #ifdef TRACE_MEM
-        Trace(Cerr, "TCW = %zd, TPW = %zd\n", tcw, tpw);
-        Trace(Cerr, "New table of size %d\n", Next->Size);
+        Trace(std::cerr, "TCW = %zd, TPW = %zd\n", tcw, tpw);
+        Trace(std::cerr, "New table of size %d\n", m_next->m_size);
 #endif
 
-        Lock.Release();
+        m_lock.Release();
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TTable<H, E, RK1, RK2, RV>::Copy(TEntry<RK1, RK2, RV>* entry) {
-        TAtomicBase entryKey = entry->Key;
-        if (entryKey == TEntryT::NO_KEY || entryKey == TEntryT::TOMBSTONE) {
-            entry->State = COPIED;
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void Table<H, E, RK1, RK2, RV>::Copy(Entry<RK1, RK2, RV>* entry) {
+        AtomicBase entryKey = entry->m_key;
+        if (entryKey == EntryT::NO_KEY || entryKey == EntryT::TOMBSTONE) {
+            entry->m_state = COPIED;
             return;
         }
 #ifdef TRACE
-        Trace(Cerr, "Copy \"%s\"\n", entry->Key);
+        Trace(std::cerr, "Copy \"%s\"\n", entry->Key);
 #endif
 
-        if (entry->State == NORMAL)
-            StateCas(&entry->State, COPYING, NORMAL);
+        if (entry->m_state == NORMAL)
+            StateCas(&entry->m_state, COPYING, NORMAL);
         // by now entry is locked for modifications
         // that means, that each thread that succeeds with operation on it
         // will have to repeat this operation in the next table
 
         // remember the value to copy to the next table
-        TAtomicBase entryValue = entry->Value;
+        AtomicBase entryValue = entry->m_value;
 
         // we don't need to copy values that are not set yet
-        if (entryValue == TEntryT::NO_VALUE) {
-            entry->State = COPIED;
+        if (entryValue == EntryT::NO_VALUE) {
+            entry->m_state = COPIED;
 #ifdef TRACE
-            Trace(Cerr, "Don't need to copy empty entry\n");
+            Trace(std::cerr, "Don't need to copy empty entry\n");
 #endif
             return;
         }
 
-        size_t hashValue = Parent->Hash(entryKey); 
+        size_t hashValue = m_parent->m_hash(entryKey);
 
-        TTableT* current = this;
-        while (entry->State == COPYING) {
-            if (!current->Next)
+        TableT* current = this;
+        while (entry->m_state == COPYING) {
+            if (!current->m_next)
                 current->CreateNext();
-            TTableT* target = current->Next;
-            TAtomicBase foundKey;
-            TEntryT* dest = target->LookUp(entryKey, hashValue, foundKey);
+            TableT* target = current->m_next;
+            AtomicBase foundKey;
+            EntryT* dest = target->LookUp(entryKey, hashValue, foundKey);
 
             // can't insert anything in full table
             if (target->IsFull() || dest == 0) {
@@ -520,36 +532,36 @@ namespace NLFHT {
                 continue;
             }
             // try to get entry for current key
-            if (foundKey == TEntryT::NO_KEY) { 
-                if (!AtomicCas(&dest->Key, entryKey, TEntryT::NO_KEY))
+            if (foundKey == EntryT::NO_KEY) {
+                if (!AtomicCas(&dest->m_key, entryKey, EntryT::NO_KEY))
                     // lost race to install new key
                     continue;
             }
-            if (dest->Value == TEntryT::NO_VALUE)
-                if (AtomicCas(&dest->Value, entryValue, TEntryT::NO_VALUE))
-                    Parent->Guard->CopyWrites++;
+            if (dest->m_value == EntryT::NO_VALUE)
+                if (AtomicCas(&dest->m_value, entryValue, EntryT::NO_VALUE))
+                    ++m_parent->m_guard->m_copyWrites;
                 // else we already have some real value in the next table,
                 // it means copying is done
-            if (dest->State != NORMAL)
+            if (dest->m_state != NORMAL)
                 continue;
 
-            entry->State = COPIED;
+            entry->m_state = COPIED;
         }
     }   
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    typename TTable<H, E, RK1, RK2, RV>::EResult TTable<H, E, RK1, RK2, RV>::Put(TAtomic key, TAtomic value, TPutCondition cond) {
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    typename Table<H, E, RK1, RK2, RV>::EResult Table<H, E, RK1, RK2, RV>::Put(Atomic key, Atomic value, PutCondition cond) {
 #ifdef TRACE
-        Trace(Cerr, "Put key \"%s\" and value \"%s\" under condition %s..\n",
+        Trace(std::cerr, "Put key \"%s\" and value \"%s\" under condition %s..\n",
                           key, value, ~cond.ToString());
 #endif
 
-        size_t hashValue = Parent->Hash(key);
+        size_t hashValue = m_parent->m_hash(key);
 
-        TEntryT* entry = 0;
+        EntryT* entry = 0;
         while (!entry)
         {
-            TAtomicBase foundKey;
+            AtomicBase foundKey;
             entry = LookUp(key, hashValue, foundKey);
             if (!entry) 
                 return FULL_TABLE;
@@ -558,15 +570,15 @@ namespace NLFHT {
                 return FULL_TABLE;
             }
 #ifdef TRACE
-            Trace(Cerr, "Consider entry %d\n", entry - &Data[0]);
+            Trace(std::cerr, "Consider entry %d\n", entry - &Data[0]);
 #endif
-            if (foundKey == TEntryT::NO_KEY) { 
-                if (cond.When == TPutCondition::IF_EXISTS ||
-                    cond.When == TPutCondition::IF_MATCHES)
+            if (foundKey == EntryT::NO_KEY) {
+                if (cond.m_when == PutCondition::IF_EXISTS ||
+                    cond.m_when == PutCondition::IF_MATCHES)
                     return FAILED;
-                if (!AtomicCas(&entry->Key, key, TEntryT::NO_KEY)) {
+                if (!AtomicCas(&entry->m_key, key, EntryT::NO_KEY)) {
 #ifdef TRACE
-                    Trace(Cerr, "Lost race for instaling key\n");
+                    Trace(std::cerr, "Lost race for instaling key\n");
 #endif
                     entry = 0;
                 }
@@ -574,59 +586,58 @@ namespace NLFHT {
         }
 
 #ifdef TRACE
-        Trace(Cerr, "Got entry %d\n", entry - &Data[0]);
+        Trace(std::cerr, "Got entry %d\n", entry - &Data[0]);
 #endif
         while (true) {
             // entry can not be in COPYING if table is not full, 
             // but there can be small possible overhead (see 4)
-            if (entry->State == COPYING)
+            if (entry->m_state == COPYING)
                 Copy(entry);
-            if (entry->State == COPIED)
+            if (entry->m_state == COPIED)
                 return FAILED;
 
-            if (entry->Value == TEntryT::NO_VALUE) {
-                if (cond.When == TPutCondition::IF_EXISTS)
+            if (entry->m_value == EntryT::NO_VALUE) {
+                if (cond.m_when == PutCondition::IF_EXISTS)
                     return FAILED;
-                if (AtomicCas(&entry->Value, value, TEntryT::NO_VALUE)
-                    && entry->State == NORMAL) { // check that entry wasn't copied during assignment 
-                    Parent->Guard->PutWrites++;
+                if (AtomicCas(&entry->m_value, value, EntryT::NO_VALUE) && entry->m_state == NORMAL) { // check that entry wasn't copied during assignment
+                    ++m_parent->m_guard->m_putWrites;
                     return SUCCEEDED; 
                 }
             }
-            if (cond.When == TPutCondition::IF_ABSENT)
+            if (cond.m_when == PutCondition::IF_ABSENT)
                 return FAILED;
             
             // we can set this value no matter what state is entry in
-            TAtomic oldValue = entry->Value;
-            if (cond.When == TPutCondition::IF_MATCHES && oldValue != cond.Value)
+            Atomic oldValue = entry->m_value;
+            if (cond.m_when == PutCondition::IF_MATCHES && oldValue != cond.m_value)
                 return FAILED;
-            if (AtomicCas(&entry->Value, value, oldValue)
-                    && entry->State == NORMAL) {  
+            if (AtomicCas(&entry->m_value, value, oldValue) && entry->m_state == NORMAL) {
                 return SUCCEEDED;
             }
         }
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    typename TTable<H, E, RK1, RK2, RV>::EResult TTable<H, E, RK1, RK2, RV>::Delete(TAtomic key) {
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    typename Table<H, E, RK1, RK2, RV>::EResult Table<H, E, RK1, RK2, RV>::Delete(Atomic key) {
 #ifdef TRACE
-        Trace(Cerr, "Delete \"%s\"\n", key);
+        Trace(std::cerr, "Delete \"%s\"\n", key);
 #endif
 
-        size_t hashValue = Parent->Hash(key);
-        TAtomicBase foundKey;
-        TEntryT* entry = LookUp(key, hashValue, foundKey);
+        size_t hashValue = m_parent->m_hash(key);
+        AtomicBase foundKey;
+        EntryT* entry = LookUp(key, hashValue, foundKey);
 
         //  if table is full we can't say anything
-        if (!entry) return FULL_TABLE;
+        if (!entry)
+            return FULL_TABLE;
 
         while (true) {
-            if (entry->State == COPYING)
+            if (entry->m_state == COPYING)
                 Copy(entry);
-            if (entry->State == COPIED)
+            if (entry->m_state == COPIED)
                 return FULL_TABLE;
 
-            if (foundKey == TEntryT::NO_KEY) {
+            if (foundKey == EntryT::NO_KEY) {
                 // if table is full, entry can be in the next table
                 if (IsFull())
                     return FULL_TABLE;
@@ -635,48 +646,48 @@ namespace NLFHT {
                 return FAILED;
             }            
 
-            entry->Key = TEntryT::TOMBSTONE;
-            if (entry->State == NORMAL)
+            entry->m_key = EntryT::TOMBSTONE;
+            if (entry->m_state == NORMAL)
                 return SUCCEEDED;
         }
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TTable<H, E, RK1, RK2, RV>::DoCopyTask() {
-        if ((size_t)CopiedCnt < Size) {
-            size_t finish = AtomicAdd(CopiedCnt, CopyTaskSize);
-            size_t start = finish - CopyTaskSize;
-            if (start < Size) {
-                finish = std::min(Size, finish);
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void Table<H, E, RK1, RK2, RV>::DoCopyTask() {
+        if ((size_t)m_copiedCnt < m_size) {
+            size_t finish = AtomicAdd(m_copiedCnt, m_copyTaskSize);
+            size_t start = finish - m_copyTaskSize;
+            if (start < m_size) {
+                finish = Min(m_size, finish);
 #ifdef TRACE
-                Trace(Cerr, "Copy from %d to %d\n", start, finish); 
+                Trace(std::cerr, "Copy from %d to %d\n", start, finish);
 #endif        
-                for (size_t i = start; i < finish; i++)
-                    Copy(&Data[i]);   
+                for (size_t i = start; i < finish; ++i)
+                    Copy(&m_data[i]);
             }
         }
 
-        if ((size_t)CopiedCnt >= Size)
+        if ((size_t)m_copiedCnt >= m_size)
             PrepareToDelete();
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TTable<H, E, RK1, RK2, RV>::PrepareToDelete() {
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void Table<H, E, RK1, RK2, RV>::PrepareToDelete() {
 #ifdef TRACE
-        Trace(Cerr, "PrepareToDelete\n");
+        Trace(std::cerr, "PrepareToDelete\n");
 #endif
-        TAtomicBase currentTableNumber = Parent->TableNumber;
-        if (Parent->Head == this && AtomicCas(&Parent->Head, Next, this)) {
+        AtomicBase currentTableNumber = m_parent->m_tableNumber;
+        if (m_parent->m_head == this && AtomicCas(&m_parent->m_head, m_next, this)) {
             // deleted table from main list
             // now it's only thread that has pointer to it
-            AtomicIncrement(Parent->TableNumber);
-            Parent->TableToDeleteNumber = currentTableNumber;
+            AtomicIncrement(m_parent->m_tableNumber);
+            m_parent->m_tableToDeleteNumber = currentTableNumber;
             while (true) {
-                TTable* toDelete = Parent->ToDelete;
-                NextToDelete = toDelete;
-                if (AtomicCas(&Parent->ToDelete, this, toDelete)) {
+                Table* toDelete = m_parent->m_toDelete;
+                m_nextToDelete = toDelete;
+                if (AtomicCas(&m_parent->m_toDelete, this, toDelete)) {
 #ifdef TRACE_MEM
-                    Trace(Cerr, "Scheduled to delete table %zd\n", (size_t)this);
+                    Trace(std::cerr, "Scheduled to delete table %zd\n", (size_t)this);
 #endif
                     break;
                 }
@@ -684,28 +695,33 @@ namespace NLFHT {
         }
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TTable<H, E, RK1, RK2, RV>::Print(TOutputStream& ostr) {
-        TStringStream buf;
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void Table<H, E, RK1, RK2, RV>::Print(std::ostream& ostr) {
+        assert(false);
+        /*
+        std::stringstream buf;
 
         buf << "Table at " << (size_t)this << ":\n";
 
-        buf << "Size: " << Size << '\n'
-            << "CopiedCnt: " << CopiedCnt << '\n'
-            << "CopyTaskSize: " << CopyTaskSize << '\n';
+        buf << "Size: " << m_size << '\n'
+            << "CopiedCnt: " << m_copiedCnt << '\n'
+            << "CopyTaskSize: " << m_copyTaskSize << '\n';
 
-        for (size_t i = 0; i < Size; i++) 
+        for (size_t i = 0; i < m_size; i++)
             buf << "Entry " << i << ": "
-                << "(" << TEntryT::KeyToString(Data[i].Key)
-                << "; " << TEntryT::ValueToString(Data[i].Value)  
-                << "; " << TEntryT::StateToString(Data[i].State)
+                << "(" << EntryT::KeyToString(m_data[i].m_key)
+                << "; " << EntryT::ValueToString(m_data[i].m_value)
+                << "; " << EntryT::StateToString(m_data[i].m_state)
                 << ")\n";
 
         ostr << buf.Str();
+        */
     }
    
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TTable<H, E, RK1, RK2, RV>::Trace(TOutputStream& ostr, const char* format, ...) {
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void Table<H, E, RK1, RK2, RV>::Trace(std::ostream& ostr, const char* format, ...) {
+        assert(false);
+        /*
         std::string buf1;
         sprintf(buf1, "Thread %zd in table %zd: ", (size_t)&errno, (size_t)this);
 
@@ -716,75 +732,102 @@ namespace NLFHT {
         va_end(args);
 
         ostr << buf1 + buf2;
+        */
     }
 
-    template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-    void TConstIterator<H, E, RK1, RK2, RV>::NextEntry() {
-        Index++;
+    template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+    void ConstIterator<H, E, RK1, RK2, RV>::NextEntry() {
+        ++m_index;
 
-        while (Table) {
-            for (; Index < Table->Size; Index++) {
+        while (m_table) {
+            for (; m_index < m_table->m_size; ++m_index) {
                 // it's rather fast to copy small entry
-                const TEntryT& e = Table->Data[Index];
-                if (e.Key != TEntryT::NO_KEY && e.Key != TEntryT::TOMBSTONE && e.Value != TEntryT::NO_VALUE && e.State == NORMAL)
+                const EntryT& e = m_table->m_data[m_index];
+                if (e.m_key != EntryT::NO_KEY && e.m_key != EntryT::TOMBSTONE && e.m_value != EntryT::NO_VALUE && e.m_state == NORMAL)
                     break;
             }
-            if (Index < Table->Size)
+            if (m_index < m_table->m_size)
                 break;
-            Index = 0;
-            Table = Table->Next;
+            m_index = 0;
+            m_table = m_table->m_next;
         }
     }
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-THREAD_LOCAL NLFHT::TGuard* TLFHashTable<H, E, RK1, RK2, RV>::Guard; 
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+THREAD_LOCAL NLFHT::Guard* LFHashTable<H, E, RK1, RK2, RV>::m_guard;
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-TLFHashTable<H, E, RK1, RK2, RV>::TLFHashTable(double density, size_t initialSize, const THash& hash, const TEqual& equal) :
-    Hash(hash),
-    Equal(equal),
-    TableNumber(0),
-    TableToDeleteNumber(Max<TAtomicBase>()),
-    ToDelete(0),
-    Density(density)
+static inline size_t NextTwoPower(size_t v)
 {
-    VERIFY((initialSize & (initialSize - 1)) == 0, "Table size must be power of two");
-    Head = new TTable(this, initialSize); // size must be power of 2
+    ++v;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v |= v >> 32;
+    ++v;
+    return v;
+}
+
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+LFHashTable<H, E, RK1, RK2, RV>::LFHashTable(double density, size_t initialSize, const Hash& hash, const Equal& equal)
+    : m_hash(hash)
+    , m_equal(equal)
+    , m_tableNumber(0)
+    , m_tableToDeleteNumber((AtomicBase)(-1))
+    , m_toDelete(0)
+    , m_density(density)
+    , m_size(0)
+{
+    initialSize = NextTwoPower(initialSize);
+    m_head = new Table(this, initialSize); // size must be power of 2
 #ifdef TRACE
-    Trace(Cerr, "TLFHashTable created\n");
+    Trace(std::cerr, "TLFHashTable created\n");
 #endif
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-TAtomicBase TLFHashTable<H, E, RK1, RK2, RV>::Get(TAtomic key) {
-    YASSERT(key != TEntry::NO_KEY);
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+LFHashTable<H, E, RK1, RK2, RV>::LFHashTable(size_t initialSize)
+{
+    LFHashTable<H, E, RK1, RK2, RV>(0.3, initialSize, H(), E());
+}
+
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+LFHashTable<H, E, RK1, RK2, RV>::LFHashTable()
+{
+    LFHashTable(1);
+}
+
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+AtomicBase LFHashTable<H, E, RK1, RK2, RV>::Get(Atomic key)
+{
+    assert(key != Entry::NO_KEY);
 
     StartGuarding();
 
 #ifdef TRACE
-    Trace(Cerr, "Get \"%s\"\n", key);
+    Trace(std::cerr, "Get \"%s\"\n", key);
 #endif
 
     size_t hashValue = Hash(key);
 
-    TAtomicBase returnValue = TEntry::NO_VALUE;
-    for (TTable* cur = Head; cur; cur = cur->GetNext()) {
-        TAtomicBase foundKey;
-        TEntry* entry = cur->LookUp(key, hashValue, foundKey);
+    AtomicBase returnValue = Entry::NO_VALUE;
+    for (Table* cur = m_head; cur; cur = cur->GetNext()) {
+        AtomicBase foundKey;
+        Entry* entry = cur->LookUp(key, hashValue, foundKey);
 
-        if (foundKey == TEntry::NO_KEY) {
+        if (foundKey == Entry::NO_KEY) {
             // we can't insert in full table, if table is full we should continue search
             // but if it's not full, NO_KEY means we found an empty entry
             if (!cur->IsFull()) 
                 break;
         }
         else {
-            TAtomicBase value = entry->Value;
-            if (entry->State == NLFHT::COPYING)
+            if (entry->m_state == NLFHT::COPYING)
                 cur->Copy(entry); 
-            if (entry->State != NLFHT::COPIED) {
-                returnValue = value;
+            if (entry->m_state != NLFHT::COPIED) {
+                returnValue = entry->m_value;
                 break;
             }
         }
@@ -796,30 +839,76 @@ TAtomicBase TLFHashTable<H, E, RK1, RK2, RV>::Get(TAtomic key) {
     return returnValue; 
 }
 
-// returns true if new key appeared in a table
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-bool TLFHashTable<H, E, RK1, RK2, RV>::Put(TAtomic key, TAtomic value, TPutCondition cond) {
-    YASSERT(key != TEntry::NO_KEY);
-    YASSERT(value != TEntry::NO_VALUE);
-
-    if (cond.When == TPutCondition::IF_MATCHES && cond.Value == TEntry::NO_VALUE)
-        cond.When = TPutCondition::IF_ABSENT;
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+bool LFHashTable<H, E, RK1, RK2, RV>::Find(Atomic key, Atomic& value)
+{
+    assert(key != Entry::NO_KEY);
 
     StartGuarding();
 
 #ifdef TRACE
-    Trace(Cerr, "Put key \"%s\" and value \"%s\" under condition %s..\n",
+    Trace(std::cerr, "Get \"%s\"\n", key);
+#endif
+
+    size_t hashValue = m_hash(key);
+
+    bool result = false;
+    for (Table* cur = m_head; cur; cur = cur->GetNext())
+    {
+        AtomicBase foundKey;
+        Entry* entry = cur->LookUp(key, hashValue, foundKey);
+
+        if (foundKey == Entry::NO_KEY)
+        {
+            // we can't insert in full table, if table is full we should continue search
+            // but if it's not full, NO_KEY means we found an empty entry
+            if (!cur->IsFull())
+                break;
+        }
+        else
+        {
+            if (entry->m_state == NLFHT::COPYING)
+                cur->Copy(entry);
+            if (entry->m_state != NLFHT::COPIED) {
+                value = entry->m_value;
+                result = true;
+            }
+        }
+    }
+
+    StopGuarding();
+    return result;
+}
+
+
+// returns true if new key appeared in a table
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+bool LFHashTable<H, E, RK1, RK2, RV>::Put(Atomic key, Atomic value, PutCondition cond) {
+    assert(key != Entry::NO_KEY);
+    assert(value != Entry::NO_VALUE);
+
+    if (cond.m_when == PutCondition::IF_MATCHES && cond.m_value == Entry::NO_VALUE)
+        cond.m_when = PutCondition::IF_ABSENT;
+
+    StartGuarding();
+
+#ifdef TRACE
+    Trace(std::cerr, "Put key \"%s\" and value \"%s\" under condition %s..\n",
             TEntry::KeyToString(key).c_str(), TEntry::ValueToString(value).c_str(),
             ~cond.ToString());
 #endif
-    TTable* cur = Head;
-    typename TTable::EResult result;
-    while (true) {
-        if ((result = cur->Put(key, value, cond)) != TTable::FULL_TABLE)
+    Table* cur = m_head;
+    typename Table::EResult result;
+    while (true)
+    {
+        if ((result = cur->Put(key, value, cond)) != Table::FULL_TABLE) {
+            AtomicIncrement(m_size);
             break;
-        if (!cur->GetNext()) {
+        }
+        if (!cur->GetNext())
+        {
 #ifdef TRACE
-            Trace(Cerr, "Create next table to put new key\n");
+            Trace(std::cerr, "Create next table to put new key\n");
 #endif            
             cur->CreateNext();
         }
@@ -830,40 +919,42 @@ bool TLFHashTable<H, E, RK1, RK2, RV>::Put(TAtomic key, TAtomic value, TPutCondi
     StopGuarding();
     TryToDelete();
 
-    return result == TTable::SUCCEEDED;
+    return result == Table::SUCCEEDED;
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-bool TLFHashTable<H, E, RK1, RK2, RV>::PutIfMatch(TAtomicBase key, 
-        TAtomicBase oldValue, TAtomicBase newValue) {
-    return Put(key, newValue, TPutCondition(TPutCondition::IF_MATCHES, oldValue));
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+bool LFHashTable<H, E, RK1, RK2, RV>::PutIfMatch(AtomicBase key, AtomicBase oldValue, AtomicBase newValue)
+{
+    return Put(key, newValue, PutCondition(PutCondition::IF_MATCHES, oldValue));
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-bool TLFHashTable<H, E, RK1, RK2, RV>::PutIfAbsent(TAtomicBase key, 
-        TAtomicBase newValue) {
-    return Put(key, newValue, TPutCondition(TPutCondition::IF_ABSENT));
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+bool LFHashTable<H, E, RK1, RK2, RV>::PutIfAbsent(AtomicBase key, AtomicBase newValue)
+{
+    return Put(key, newValue, PutCondition(PutCondition::IF_ABSENT));
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-bool TLFHashTable<H, E, RK1, RK2, RV>::PutIfExists(TAtomicBase key, 
-        TAtomicBase newValue) {
-    return Put(key, newValue, TPutCondition(TPutCondition::IF_EXISTS));
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+bool LFHashTable<H, E, RK1, RK2, RV>::PutIfExists(AtomicBase key, AtomicBase newValue)
+{
+    return Put(key, newValue, PutCondition(PutCondition::IF_EXISTS));
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-bool TLFHashTable<H, E, RK1, RK2, RV>::Delete(TAtomic key) {
-    YASSERT(key != TEntry::NO_KEY);
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+bool LFHashTable<H, E, RK1, RK2, RV>::Delete(Atomic key)
+{
+    assert(key != Entry::NO_KEY);
 
     StartGuarding();
 
 #ifdef TRACE
-    Trace(Cerr, "Delete \"%s\"\n", key);
+    Trace(std::cerr, "Delete \"%s\"\n", key);
 #endif
-    TTable* cur = Head;
-    typename TTable::EResult result;
-    while (true) {
-        if ((result = cur->Delete(key)) != TTable::FULL_TABLE)
+    Table* cur = m_head;
+    typename Table::EResult result;
+    while (true)
+    {
+        if ((result = cur->Delete(key)) != Table::FULL_TABLE)
             break;
         if (!cur->GetNext())
             break;
@@ -873,26 +964,40 @@ bool TLFHashTable<H, E, RK1, RK2, RV>::Delete(TAtomic key) {
     StopGuarding();
     TryToDelete();
 
-    return result == TTable::SUCCEEDED;
+    if (result == Table::SUCCEEDED)
+    {
+        AtomicDecrement(m_size);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-void TLFHashTable<H, E, RK1, RK2, RV>::StartGuarding() {
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+void LFHashTable<H, E, RK1, RK2, RV>::Clear()
+{
+}
+
+
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+void LFHashTable<H, E, RK1, RK2, RV>::StartGuarding() {
     // Guard is thread local storage. &Guard is unique for each thread.
     // Thus, it can be used as identifier.
-    if (!Guard)
-        Guard = GuardManager.AcquireGuard((size_t)&Guard);
+    if (!m_guard)
+        m_guard = m_guardManager.AcquireGuard((size_t)&m_guard);
 
     while (true) {
-        TAtomicBase CurrentTableNumber = TableNumber;
+        AtomicBase currentTableNumber = m_tableNumber;
 #ifdef TRACE
-        Trace(Cerr, "Try to guard table %lld\n", CurrentTableNumber);
+        Trace(std::cerr, "Try to guard table %lld\n", currentTableNumber);
 #endif
-        Guard->GuardTable(CurrentTableNumber);
+        m_guard->GuardTable(currentTableNumber);
         AtomicBarrier();
-        if (TableNumber == CurrentTableNumber) {
+        if (m_tableNumber == currentTableNumber) {
 #ifdef TRACE
-            Trace(Cerr, "Started guarding\n");
+            Trace(std::cerr, "Started guarding\n");
 #endif
             // Atomic operation means memory barrier.
             // Now we are sure, that no thread can delete current Head.
@@ -901,41 +1006,41 @@ void TLFHashTable<H, E, RK1, RK2, RV>::StartGuarding() {
     }
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-void TLFHashTable<H, E, RK1, RK2, RV>::StopGuarding() {
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+void LFHashTable<H, E, RK1, RK2, RV>::StopGuarding() {
     // See comments in StartGuarding.
-    if (!Guard)
-        Guard = GuardManager.AcquireGuard((size_t)&Guard);
+    if (!m_guard)
+        m_guard = m_guardManager.AcquireGuard((size_t)&m_guard);
 
-    Guard->StopGuarding();
+    m_guard->StopGuarding();
 #ifdef TRACE
-    Trace(Cerr, "Stopped guarding\n");
+    Trace(srd::cerr, "Stopped guarding\n");
 #endif
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-void TLFHashTable<H, E, RK1, RK2, RV>::TryToDelete() {
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+void LFHashTable<H, E, RK1, RK2, RV>::TryToDelete() {
 #ifdef TRACE
-    Trace(Cerr, "TryToDelete\n");
+    Trace(std::cerr, "TryToDelete\n");
 #endif
-    TTable* toDel = ToDelete;
+    Table* toDel = m_toDelete;
     if (!toDel) 
         return;
-    TTable* oldHead = Head;
-    TAtomicBase firstGuardedTable = GuardManager.GetFirstGuardedTable();
+    Table* oldHead = m_head;
+    AtomicBase firstGuardedTable = m_guardManager.GetFirstGuardedTable();
 
     // if the following is true, it means that no thread works
     // with the tables to ToDelete list
 #ifdef TRACE
-    Trace(Cerr, "TableToDeleteNumber %lld, firstGuardedTable %lld\n", TableToDeleteNumber, firstGuardedTable); 
+    Trace(std::cerr, "TableToDeleteNumber %lld, firstGuardedTable %lld\n", m_tableToDeleteNumber, firstGuardedTable);
 #endif
-    if (TableToDeleteNumber < firstGuardedTable)
-        if (AtomicCas(&ToDelete, (TTable*)0, toDel)) {
-            if (Head == oldHead) {
+    if (m_tableToDeleteNumber < firstGuardedTable)
+        if (AtomicCas(&m_toDelete, (Table*)0, toDel)) {
+            if (m_head == oldHead) {
                 while (toDel) {
-                    TTable* nextToDel = toDel->NextToDelete;
+                    Table* nextToDel = toDel->m_nextToDelete;
 #ifdef TRACE_MEM
-                    Trace(Cerr, "Deleted table %zd of size %zd\n", (size_t)toDel, toDel->Size);
+                    Trace(std::cerr, "Deleted table %zd of size %zd\n", (size_t)toDel, toDel->Size);
 #endif
                     delete toDel;
                     toDel = nextToDel;
@@ -947,47 +1052,47 @@ void TLFHashTable<H, E, RK1, RK2, RV>::TryToDelete() {
                 // successfull CAS doesn't guarantee that we have 
                 // the same table as before. We put all the elements back
                 // to the ToDelete list.
-                TTable* head = toDel; 
-                TTable* tail;
-                for (tail = head; tail->Next; tail = tail->Next);
+                Table* head = toDel;
+                Table* tail;
+                for (tail = head; tail->m_next; tail = tail->m_next);
 
                 while (true) {
-                    TTable* oldToDelete = ToDelete;
-                    tail->NextToDelete = oldToDelete;
-                    if (AtomicCas(&ToDelete, head, oldToDelete))
+                    Table* oldToDelete = m_toDelete;
+                    tail->m_nextToDelete = oldToDelete;
+                    if (AtomicCas(&m_toDelete, head, oldToDelete))
                         break;
                 }
 #ifdef TRACE_MEM
-                Trace(Cerr, "In fear of ABA problem put tables back to list\n");
+                Trace(std::cerr, "In fear of ABA problem put tables back to list\n");
 #endif
             }
         }
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-void TLFHashTable<H, E, RK1, RK2, RV>::Print(TOutputStream& ostr) {
-    TStringStream buf;
-    buf << "TLFHashTable printout\n";
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+void LFHashTable<H, E, RK1, RK2, RV>::Print(std::ostream& ostr) {
+    ostr << "TLFHashTable printout\n";
  
-    buf << '\n';
+    ostr << '\n';
 
-    TTable* cur = Head;
+    Table* cur = m_head;
     while (cur) {
-        cur->Print(buf);
-        TTable* next = cur->GetNext();
+        cur->Print(ostr);
+        Table* next = cur->GetNext();
         if (next)
-            buf << "---------------\n";
+            ostr << "---------------\n";
         cur = next;
     }
 
-    buf << "ToDelete: " << (size_t)ToDelete << '\n';
+    ostr << "ToDelete: " << (size_t)m_toDelete << '\n';
 
-    ostr << buf.Str() << '\n';
+    ostr << '\n';
 }
 
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-void TLFHashTable<H, E, RK1, RK2, RV>::Trace(TOutputStream& ostr, const char* format, ...) {
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+void LFHashTable<H, E, RK1, RK2, RV>::Trace(std::ostream& ostr, const char* format, ...) {
+    /*
     std::string buf1;
     sprintf(buf1, "Thread %zd: ", (size_t)&errno);
 
@@ -998,12 +1103,12 @@ void TLFHashTable<H, E, RK1, RK2, RV>::Trace(TOutputStream& ostr, const char* fo
     va_end(args);
 
     ostr << buf1 + buf2;
+    */
 }
 
-template <class H, class E, TAtomic RK1, TAtomic RK2, TAtomic RV>
-NLFHT::TConstIterator<H, E, RK1, RK2, RV> TLFHashTable<H, E, RK1, RK2, RV>::Begin() const {
-    TConstIterator begin(Head, -1);
-    begin++;
+template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
+NLFHT::ConstIterator<H, E, RK1, RK2, RV> LFHashTable<H, E, RK1, RK2, RV>::Begin() const {
+    ConstIterator begin(m_head, -1);
+    ++begin;
     return begin;
 }
-

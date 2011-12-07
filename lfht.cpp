@@ -1,6 +1,6 @@
 #include "lfht.h"
 
 namespace NLFHT {
-    const TAtomicBase TGuard::NO_OWNER = 0;
-    const TAtomicBase TGuard::NO_TABLE = Max<TAtomicBase>();
+    const AtomicBase Guard::NO_OWNER = 0;
+    const AtomicBase Guard::NO_TABLE = static_cast<AtomicBase>(-1);
 };

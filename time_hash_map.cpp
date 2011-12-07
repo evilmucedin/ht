@@ -248,19 +248,18 @@ struct lf_hash_map_constants
   enum { bucket_count_expand_factor = 4 };  // multiplier for bucket expansion
 };
 
-typedef atk::lf_hash_map<size_t,size_t,lf_hash_map_constants> lf_hash_map;
+typedef LFHashTable< HashF<Atomic>, EqualToF<Atomic>, 0, 1, 0 > lf_hash_map;
 
 // allow customization of basic hash_map ops - use std::map API
-template<class MapType> inline void resize_map(MapType& map_,size_t iters_) { map_.resize(iters_); }
-template<class MapType> inline void insert_map(MapType& map_,size_t key_) { map_.insert(typename MapType::value_type(key_,key_ + 1));  }
-template<class MapType> inline bool find_map(MapType& map_,size_t key_) { return (map_.find(key_) != map_.end());  }
+template<class MapType> inline void insert_map(MapType& map_,size_t key_) { map_.Put(key_,key_ + 1);  }
+template<class MapType> inline bool find_map(MapType& map_,size_t key_) { Atomic dummy; return map_.Find(key_, dummy); }
 
 // lf_hash_map find API is a bit different, i.e. bool find(key,value) where the found value is placed into value
 template<> 
 inline bool find_map(lf_hash_map& map_,size_t key_) 
 { 
-  size_t value;
-  return map_.find(key_,value); 
+  Atomic value;
+  return map_.Find((Atomic)key_, value);
 }
 
 static const size_t default_iters = 30000000;
@@ -287,7 +286,7 @@ static void report(char const* title_,double elapsedTime_,size_t iters_)
   std::cout << title_ << " " << elapsedTime_ << " secs" << std::endl;
 }
 
-template<class MapType,int Flags>
+template<class MapType, int Flags>
 static void time_map_grow(size_t iters_) 
 {
   MapType map;
@@ -300,16 +299,15 @@ static void time_map_grow(size_t iters_)
    }
 
   report("map_grow",timer.elapsedTime(),iters_);
-  std::cout << "size: " << map.size() << std::endl;
+  std::cout << "size: " << map.Size() << std::endl;
 }
 
 template<class MapType,int Flags>
 static void time_map_grow_predicted(size_t iters_) 
 {
-  MapType map;
+    MapType map(iters_);
   elapsed_timer timer;
    
-  resize_map(map,iters_);
 
   timer.reset();
   for (size_t i = 0; i != iters_; ++i) 
@@ -355,16 +353,16 @@ static void time_map_erase(size_t iters_)
      insert_map(map,g_keys[i]);
    }
    
-  std::cout << "size before erase: " << map.size() << std::endl;
+  std::cout << "size before erase: " << map.Size() << std::endl;
 
   timer.reset();
   for (i = 0; i != iters_; ++i) 
    {
-     map.erase(g_keys[i]);
+     map.Delete(g_keys[i]);
    }
 
   report("map_erase",timer.elapsedTime(),iters_);
-  std::cout << "size after erase: " << map.size() << std::endl;
+  std::cout << "size after erase: " << map.Size() << std::endl;
 }
 
 template<class MapType,int Flags>
@@ -456,31 +454,35 @@ void mtTest(MapType& map_,const std::string& test_)
   
   std::cout << "ELAPSED TIME   = " << timer.elapsedTime() << " secs"
             << "\nOPERATION TIME = " << opTime << " ns"
-            << "\nSIZE           = " << map_.size()
+            << "\nSIZE           = " << map_.Size()
             << std::endl;
 }
 
 template<class MapType,int Flags>
-void measure_mt_map(MapType& map_,const std::string& mapString_) 
+void measure_mt_map(const std::string& mapString_)
 {
-  std::cout << std::endl;
-  std::cout << "MAP TYPE = " << mapString_ << std::endl;
-  std::cout << "LOCK FREE CONCURRENT INSERT TEST - GROW DYNAMIC" << std::endl;
-  mtTest<MapType,Flags | insert_test>(map_,mapString_);
+    {
+        std::cout << std::endl;
+        std::cout << "MAP TYPE = " << mapString_ << std::endl;
+        std::cout << "LOCK FREE CONCURRENT INSERT TEST - GROW DYNAMIC" << std::endl;
+        MapType map_;
+        mtTest<MapType,Flags | insert_test>(map_,mapString_);
 
-  std::cout << std::endl;
-  std::cout << "LOCK FREE CONCURRENT FIND TEST" << std::endl;
-  mtTest<MapType,Flags>(map_,mapString_);
+        std::cout << std::endl;
+        std::cout << "LOCK FREE CONCURRENT FIND TEST" << std::endl;
+        mtTest<MapType,Flags>(map_,mapString_);
+    }
 
-  map_.clear();
-  resize_map(map_,N);
+    {
+        MapType map_(N);
 
-  std::cout << std::endl;
-  std::cout << "LOCK FREE CONCURRENT INSERT TEST - GROW PREDICTED" << std::endl;
-  mtTest<MapType,Flags | insert_test>(map_,mapString_);
+        std::cout << std::endl;
+        std::cout << "LOCK FREE CONCURRENT INSERT TEST - GROW PREDICTED" << std::endl;
+        mtTest<MapType,Flags | insert_test>(map_,mapString_);
+    }
 }
 
-lf_hash_map lfHashMap;
+lf_hash_map lfHashMap(0.3, 1, HashF<Atomic>(), EqualToF<Atomic>());
 
 int main(int argc_,char **argv_)
 {
@@ -502,7 +504,7 @@ int main(int argc_,char **argv_)
      std::cout << std::endl;
      std::cout << "LOCK FREE CONCURRENCY TEST WITH " << nThreads << " THREADS" << std::endl;
   
-     measure_mt_map<lf_hash_map,lock_free_test>(lfHashMap,"lockfree::lf_hash_map");
+     measure_mt_map<lf_hash_map,lock_free_test>("lockfree::lf_hash_map");
    }
 
   if (1)

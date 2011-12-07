@@ -1,80 +1,83 @@
 #include "lfht.h"
 
-template <class Key, class Value, 
-          class HashFunc = THash<Key>, class EqualFunc = TEqualTo<Key>, 
-          class Alloc = DEFAULT_ALLOCATOR(Key)>
-class TLockFreeHashMap {
+template < class Key, class Value,
+          class HashFunc = HashF<Key>, class EqualFunc = EqualToF<Key>,
+          class Alloc = std::allocator<Key> >
+class LockFreeHashMap
+{
 private:
-    class TPntHashFunc {
+    class PntHashFunc
+    {
     private:
         HashFunc Hash;
     public:
-        TPntHashFunc(const HashFunc& hash = HashFunc()) :
+        PntHashFunc(const HashFunc& hash = HashFunc()) :
             Hash(hash)
         {
         }
-        size_t operator () (TAtomicBase key) {
+        size_t operator () (AtomicBase key) {
             return Hash(static_cast<Key*>(key));
         }
     };
 
-    class TPntEqualFunc {
+    class PntEqualFunc {
     private:
         EqualFunc AreEqual;
     public:
-        TPntEqualFunc(const EqualFunc& areEqual = EqualFunc()) :
+        PntEqualFunc(const EqualFunc& areEqual = EqualFunc()) :
             AreEqual(areEqual)
         {
         }
-        bool operator () (TAtomicBase left, TAtomicBase right) {
+        bool operator () (AtomicBase left, AtomicBase right) {
             return AreEqual(static_cast<Key*>(left), static_cast<Key*>(right));
         }    
     };
 
-    typedef size_t TSizeType;
-    typedef TPair<Key, Value> TValueType;
+    typedef size_t SizeType;
+    typedef std::pair<Key, Value> ValueType;
 
-    typedef int TIterator;
-    typedef int TConstIterator;
+    typedef int Iterator;
+    typedef int ConstIterator;
 
-    typedef TLFHashTable<TPntHashFunc, TPntEqualFunc, 0, 1, 0> TLFHashTableT;
-    typedef typename Alloc::template rebind<TLFHashTableT>::other TLFHashTableAllocator;
+    typedef LFHashTable<PntHashFunc, PntEqualFunc, 0, 1, 0> LFHashTableT;
+    typedef typename Alloc::template rebind<LFHashTableT>::other LFHashTableAllocator;
 
-    TLFHashTableAllocator LFHTAllocator;
+    LFHashTableAllocator m_LFHTAllocator;
 
-    TLFHashTableT* Impl;
+    LFHashTableT* m_impl;
+
 public:
-    template <class TAllocParam>
-    TLockFreeHashMap(TAllocParam* param) : 
-        LFHTAllocator(param)
+    template <class AllocParam>
+    LockFreeHashMap(AllocParam* param)
+        : m_LFHTAllocator(param)
     {
-        TLockFreeHashMap();
+        LockFreeHashMap();
     }
 
     explicit
-    TLockFreeHashMap(TSizeType size = 4, 
+    LockFreeHashMap(SizeType size = 4,
                      const HashFunc& hash = HashFunc(), 
                      const EqualFunc& areEqual = EqualFunc()) {
-        Impl = LFHTAllocator.allocate(1);
-        new (Impl) TLFHashTableT(0.3, size, TPntHashFunc(hash), TPntEqualFunc(areEqual));
+        m_impl = m_LFHTAllocator.allocate(1);
+        new (m_impl) LFHashTableT(0.3, size, PntHashFunc(hash), PntEqualFunc(areEqual));
     } 
 
     template <class TInputIterator>
-    TLockFreeHashMap(TInputIterator first, TInputIterator last,
-                      TSizeType size = 4, 
+    LockFreeHashMap(TInputIterator first, TInputIterator last,
+                      SizeType size = 4,
                       const HashFunc& hash = HashFunc(), const EqualFunc& areEqual = EqualFunc()) {
-        TLockFreeHashMap(size, hash, areEqual);
+        LockFreeHashMap(size, hash, areEqual);
         Insert(first, last);
     }
 
-    virtual ~TLockFreeHashMap() {
-        LFHTAllocator.deallocate(Impl, 1);
+    virtual ~LockFreeHashMap() {
+        m_LFHTAllocator.deallocate(m_impl, 1);
     }
 
     // O(number of elements) working time!
-    TSizeType Size();
-    TSizeType MaxSize() {
-        return TSizeType(-1);
+    SizeType Size();
+    SizeType MaxSize() {
+        return SizeType(-1);
     }
     // O(number of elements) working time!
     bool Empty() {
@@ -82,11 +85,11 @@ public:
     }
 
     // All iterators are NOT thread-safe.
-    TIterator Begin();
-    TIterator End();
-    TConstIterator Begin() const;
-    TConstIterator End() const;
+    Iterator Begin();
+    Iterator End();
+    ConstIterator Begin() const;
+    ConstIterator End() const;
 
-    template <class TInputIterator>
-    void Insert(TInputIterator first, TInputIterator last);
+    template <class InputIterator>
+    void Insert(InputIterator first, InputIterator last);
 };
