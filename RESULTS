@@ -1,0 +1,121 @@
+[jmb@nehalem lockfree]$ ./time_hash_map.bin 
+SYSYEM INFO:
+ sockets        = 1
+ physical cores = 4
+ virtual cores  = 8
+ model name     = Intel(R) Core(TM) i7 CPU         940  @ 2.93GHz
+ uname          = Linux nehalem 2.6.40.6-0.fc15.x86_64 #1 SMP Tue Oct 4 00:39:50 UTC 2011 x86_64
+
+START WARM UP SYSTEM BEFORE EXECUTING TEST
+
+lockfree::lf_hash_map
+map_grow 2.93569 secs
+size: 18964204
+map_predict_grow 2.23154 secs
+map_find 0.748144 secs
+r value: 1
+size before erase: 18964204
+map_erase 1.5596 secs
+size after erase: 0
+
+lockfree::lf_hash_map
+map_grow 2.93339 secs
+size: 18964204
+map_predict_grow 2.22023 secs
+map_find 0.751859 secs
+r value: 1
+size before erase: 18964204
+map_erase 1.56753 secs
+size after erase: 0
+END WARM UP SYSTEM BEFORE EXECUTING TEST
+
+LOCK FREE CONCURRENCY TEST WITH 4 THREADS
+
+MAP TYPE = lockfree::lf_hash_map
+LOCK FREE CONCURRENT INSERT TEST - GROW DYNAMIC
+ELAPSED TIME   = 2.59207 secs
+OPERATION TIME = 103.06 ns
+SIZE           = 24542983
+
+LOCK FREE CONCURRENT FIND TEST
+ELAPSED TIME   = 0.990522 secs
+OPERATION TIME = 38.5836 ns
+SIZE           = 24542983
+
+LOCK FREE CONCURRENT INSERT TEST - GROW PREDICTED
+ELAPSED TIME   = 1.76105 secs
+OPERATION TIME = 69.0317 ns
+SIZE           = 24542983
+
+SINGLE THREAD LOCK FREE TEST
+
+lockfree::lf_hash_map
+map_grow 2.94796 secs
+size: 18964204
+map_predict_grow 2.23008 secs
+map_find 0.747781 secs
+r value: 1
+size before erase: 18964204
+map_erase 1.56994 secs
+size after erase: 0
+
+[jmb@sandybridge lockfree]$ ./time_hash_map.bin 
+SYSYEM INFO:
+ sockets        = 1
+ physical cores = 4
+ virtual cores  = 8
+ model name     = Intel(R) Core(TM) i7-2600 CPU @ 3.40GHz
+ uname          = Linux sandybridge 2.6.40.6-0.fc15.x86_64 #1 SMP Tue Oct 4 00:39:50 UTC 2011 x86_64
+
+START WARM UP SYSTEM BEFORE EXECUTING TEST
+
+lockfree::lf_hash_map
+map_grow 2.57486 secs
+size: 18964204
+map_predict_grow 2.02537 secs
+map_find 0.604175 secs
+r value: 1
+size before erase: 18964204
+map_erase 1.35554 secs
+size after erase: 0
+
+lockfree::lf_hash_map
+map_grow 2.55652 secs
+size: 18964204
+map_predict_grow 2.04069 secs
+map_find 0.604253 secs
+r value: 1
+size before erase: 18964204
+map_erase 1.35536 secs
+size after erase: 0
+END WARM UP SYSTEM BEFORE EXECUTING TEST
+
+LOCK FREE CONCURRENCY TEST WITH 4 THREADS
+
+MAP TYPE = lockfree::lf_hash_map
+LOCK FREE CONCURRENT INSERT TEST - GROW DYNAMIC
+ELAPSED TIME   = 2.19813 secs
+OPERATION TIME = 87.7356 ns
+SIZE           = 24542983
+
+LOCK FREE CONCURRENT FIND TEST
+ELAPSED TIME   = 0.869146 secs
+OPERATION TIME = 34.5817 ns
+SIZE           = 24542983
+
+LOCK FREE CONCURRENT INSERT TEST - GROW PREDICTED
+ELAPSED TIME   = 1.71267 secs
+OPERATION TIME = 68.4473 ns
+SIZE           = 24542983
+
+SINGLE THREAD LOCK FREE TEST
+
+lockfree::lf_hash_map
+map_grow 2.56978 secs
+size: 18964204
+map_predict_grow 2.03742 secs
+map_find 0.6033 secs
+r value: 1
+size before erase: 18964204
+map_erase 1.35629 secs
+size after erase: 0
