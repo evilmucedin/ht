@@ -251,7 +251,7 @@ struct lf_hash_map_constants
 typedef LFHashTable< HashF<Atomic>, EqualToF<Atomic>, 0, 1, 0 > lf_hash_map;
 
 // allow customization of basic hash_map ops - use std::map API
-template<class MapType> inline void insert_map(MapType& map_,size_t key_) { map_.Put(key_,key_ + 1);  }
+template<class MapType> inline void insert_map(MapType& map_,size_t key_) { map_.PutIfAbsent(key_, key_ + 1);  }
 template<class MapType> inline bool find_map(MapType& map_,size_t key_) { Atomic dummy; return map_.Find(key_, dummy); }
 
 // lf_hash_map find API is a bit different, i.e. bool find(key,value) where the found value is placed into value

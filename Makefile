@@ -1,10 +1,21 @@
-all: test
+CXXX = g++ -std=c++0x
 
-time_hash_map.o: time_hash_map.cpp
-	g++ time_hash_map.cpp -O3 -std=c++0x -o time_hash_map.o -DNDEBUG -c
+all: debug
 
-lfht.o: lfht.cpp
-	g++ lfht.cpp -O3 -std=c++0x -o lfht.o -lrt -lpthread -DNDEBUG -c
+time_hash_map.o: time_hash_map.cpp lfht.h atomic.h
+	$(CXXX) time_hash_map.cpp -o time_hash_map.o -c
+
+lfht.o: lfht.cpp lfht.h atomic.h
+	$(CXXX) lfht.cpp -o lfht.o -c
 
 test: lfht.o time_hash_map.o
-	g++ time_hash_map.o lfht.o -o test -lrt -lpthread
+	$(CXXX) time_hash_map.o lfht.o -o test -lrt -lpthread
+
+debug: CXXX += -DDEBUG -g
+debug: test
+
+release: CXXX += -DNDEBUG -O3
+release: test
+
+clean:
+	rm -f time_hash_map.o lfht.o test

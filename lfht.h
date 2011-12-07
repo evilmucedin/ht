@@ -97,7 +97,7 @@ namespace NLFHT {
         friend class LFHashTable<H, E, RK1, RK2, RV>;
         friend class ConstIterator<H, E, RK1, RK2, RV>;
 
-        size_t m_size;
+        const size_t m_size;
         size_t m_maxProbeCnt;
         volatile bool m_isFullFlag;
         
@@ -120,7 +120,7 @@ namespace NLFHT {
             FAILED
         };
 
-    public:      
+    public:
         Table(LFHashTableT* parent, size_t size)
             : m_size(size)
             , m_isFullFlag(false)
@@ -130,6 +130,7 @@ namespace NLFHT {
             , m_next(0)
             , m_nextToDelete(0)
         {
+            assert(size);
             VERIFY((m_size & (m_size - 1)) == 0, "Size must be power of two\n");
 
             m_data.resize(m_size);
@@ -378,9 +379,7 @@ public:
     };
 
 public:
-    LFHashTable(double density, size_t initialSize, const Hash& hash = Hash(), const Equal& equal = Equal());
-    LFHashTable();
-    LFHashTable(size_t initialSize);
+    LFHashTable(size_t initialSize = 1, double density = 0.3, const Hash& hash = Hash(), const Equal& equal = Equal());
 
     AtomicBase Get(Atomic key);
     bool Find(Atomic key, Atomic& value);
@@ -417,13 +416,15 @@ namespace NLFHT {
 #endif
 
         size_t i = hash & (m_size - 1);
-        size_t probesCnt = 0; 
+        size_t probesCnt = 0;
 
 #ifdef TRACE
         Trace(std::cerr, "Start from entry %zd\n", i);
 #endif
         foundKey = EntryT::NO_KEY;
         do {
+            assert(i < m_size);
+            assert(m_data.size() == m_size);
             AtomicBase currentKey = m_data[i].m_key;
             if (currentKey != EntryT::TOMBSTONE) {
                 if (currentKey == EntryT::NO_KEY) {
@@ -771,7 +772,7 @@ static inline size_t NextTwoPower(size_t v)
 }
 
 template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
-LFHashTable<H, E, RK1, RK2, RV>::LFHashTable(double density, size_t initialSize, const Hash& hash, const Equal& equal)
+LFHashTable<H, E, RK1, RK2, RV>::LFHashTable(size_t initialSize, double density, const Hash& hash, const Equal& equal)
     : m_hash(hash)
     , m_equal(equal)
     , m_tableNumber(0)
@@ -781,22 +782,11 @@ LFHashTable<H, E, RK1, RK2, RV>::LFHashTable(double density, size_t initialSize,
     , m_size(0)
 {
     initialSize = NextTwoPower(initialSize);
+    assert( 0 == (initialSize & (initialSize - 1)) );
     m_head = new Table(this, initialSize); // size must be power of 2
 #ifdef TRACE
     Trace(std::cerr, "TLFHashTable created\n");
 #endif
-}
-
-template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
-LFHashTable<H, E, RK1, RK2, RV>::LFHashTable(size_t initialSize)
-{
-    LFHashTable<H, E, RK1, RK2, RV>(0.3, initialSize, H(), E());
-}
-
-template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
-LFHashTable<H, E, RK1, RK2, RV>::LFHashTable()
-{
-    LFHashTable(1);
 }
 
 template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>
@@ -901,10 +891,9 @@ bool LFHashTable<H, E, RK1, RK2, RV>::Put(Atomic key, Atomic value, PutCondition
     typename Table::EResult result;
     while (true)
     {
-        if ((result = cur->Put(key, value, cond)) != Table::FULL_TABLE) {
-            AtomicIncrement(m_size);
+        assert(cur);
+        if ((result = cur->Put(key, value, cond)) != Table::FULL_TABLE)
             break;
-        }
         if (!cur->GetNext())
         {
 #ifdef TRACE
@@ -919,7 +908,15 @@ bool LFHashTable<H, E, RK1, RK2, RV>::Put(Atomic key, Atomic value, PutCondition
     StopGuarding();
     TryToDelete();
 
-    return result == Table::SUCCEEDED;
+    if (Table::SUCCEEDED == result)
+    {
+        AtomicIncrement(m_size);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 template <class H, class E, Atomic RK1, Atomic RK2, Atomic RV>

@@ -88,7 +88,7 @@ private:
     Atomic m_val;
 };
 
-#define VERIFY(X, Y) assert((X) && !(Y))
+#define VERIFY(X, Y) assert((X) && (Y))
 
 template<typename T>
 T Min(T x, T y)
