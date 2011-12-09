@@ -1,4 +1,4 @@
-CXXX = g++ -std=c++0x
+CXXX = g++ -std=c++0x -march=native
 
 all: debug
 

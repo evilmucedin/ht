@@ -12,6 +12,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "lf_hash_map.h"
+#include "mutexht.h"
+
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/variate_generator.hpp>
@@ -248,7 +250,9 @@ struct lf_hash_map_constants
   enum { bucket_count_expand_factor = 4 };  // multiplier for bucket expansion
 };
 
-typedef LFHashTable< HashF<Atomic>, EqualToF<Atomic>, 0, 1, 0 > lf_hash_map;
+// typedef LFHashTable< HashF<Atomic>, EqualToF<Atomic>, std::type_traits<Atomic>::max(), 1, 0 > lf_hash_map;
+typedef MutexHashTable<AtomicBase, AtomicBase> lf_hash_map;
+
 
 // allow customization of basic hash_map ops - use std::map API
 template<class MapType> inline void insert_map(MapType& map_,size_t key_) { map_.PutIfAbsent(key_, key_ + 1);  }
@@ -258,7 +262,7 @@ template<class MapType> inline bool find_map(MapType& map_,size_t key_) { Atomic
 template<> 
 inline bool find_map(lf_hash_map& map_,size_t key_) 
 { 
-  Atomic value;
+  AtomicBase value;
   return map_.Find((Atomic)key_, value);
 }
 
@@ -482,7 +486,7 @@ void measure_mt_map(const std::string& mapString_)
     }
 }
 
-lf_hash_map lfHashMap(0.3, 1, HashF<Atomic>(), EqualToF<Atomic>());
+lf_hash_map lfHashMap();
 
 int main(int argc_,char **argv_)
 {
