@@ -2,7 +2,7 @@ CXXX = g++ -std=c++0x -march=native
 
 all: debug
 
-time_hash_map.o: time_hash_map.cpp lfht.h atomic.h
+time_hash_map.o: time_hash_map.cpp lfht.h atomic.h mutexht.h
 	$(CXXX) time_hash_map.cpp -o time_hash_map.o -c
 
 lfht.o: lfht.cpp lfht.h atomic.h

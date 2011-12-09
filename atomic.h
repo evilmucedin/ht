@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <cassert>
+#include <pthread.h>
 
 typedef volatile intptr_t Atomic;
 typedef intptr_t AtomicBase;
@@ -112,4 +113,115 @@ struct EqualToF
     {
         return a == b;
     }
+};
+
+inline unsigned AtomicExchange32(volatile void *ptr, unsigned x)
+{
+        __asm__ __volatile__("xchgl %0,%1"
+                                :"=r" ((unsigned) x)
+                                :"m" (*(volatile unsigned *)ptr), "0" (x)
+                                :"memory");
+        return x;
+}
+
+inline unsigned AtomicExchange8(volatile void *ptr, unsigned char x)
+{
+        __asm__ __volatile__("xchgb %0,%1"
+                                :"=r" ((unsigned char) x)
+                                :"m" (*(volatile unsigned char *)ptr), "0" (x)
+                                :"memory");
+        return x;
+}
+
+#include <linux/futex.h>
+#define SYS_futex 202
+
+inline int SysFutex(int* futex, int op, int val1, struct timespec* timeout, void* addr2, int val3)
+{
+    assert(reinterpret_cast<int64_t>(futex) % 4 == 0); // pointer must by 4 byte aligned
+    return syscall(SYS_futex, futex, op, val1, timeout, addr2, val3);
+}
+
+inline int SysFutexWait(int* futex, int val1, struct timespec* timeout=NULL)
+{
+    int res = SysFutex(futex, FUTEX_WAIT_PRIVATE, val1, timeout, NULL, 0);
+    // Sometimes on signal, thread can wake up with EPREM instead of EINTR, which is fine.
+    assert(res == 0 || res == -EINTR || res == -EWOULDBLOCK || res == -EPERM || (timeout && res == -ETIMEDOUT));
+    return res;
+}
+
+inline int SysFutexWake(int* futex, int threads)
+{
+    int res = SysFutex(futex, FUTEX_WAKE_PRIVATE, threads, NULL, NULL, 0);
+    assert(res >= 0);
+    assert(res <= threads);
+    return res;
+}
+
+class Mutex
+{
+private:
+    enum { UNLOCKED = 0, LOCKED_UNCONTENDED = 1, CONTENDED = 0x101 };
+
+    union
+    {
+        int m_state;
+        char m_locked;
+    };
+
+public:
+    Mutex()
+    {
+        m_state = UNLOCKED;
+    }
+
+    bool TryLock()
+    {
+        return 0 == AtomicExchange8(&m_locked, 1);
+    }
+
+    void Lock()
+    {
+        if (TryLock())
+            return;
+
+        while (UNLOCKED != AtomicExchange32(&m_state, CONTENDED))
+        {
+            SysFutexWait(&m_state, CONTENDED);
+        }
+    }
+
+    void UnLock()
+    {
+        assert(UNLOCKED != m_state);
+        if (LOCKED_UNCONTENDED != AtomicExchange32(&m_state, UNLOCKED))
+        {
+            SysFutexWake(&m_state, 1);
+        }
+    }
+
+    ~Mutex()
+    {
+        assert(UNLOCKED == m_state);
+    }
+};
+
+template<typename T>
+class Guard
+{
+private:
+    T& m_cond;
+
+public:
+    Guard(T& cond)
+        : m_cond(cond)
+    {
+        m_cond.Lock();
+    }
+
+    ~Guard()
+    {
+        m_cond.UnLock();
+    }
+
 };
