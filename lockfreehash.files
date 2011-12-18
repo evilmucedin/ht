@@ -4,3 +4,7 @@ lfht.h
 time_hash_map.cpp
 atomic.h
 mutexht.h
+atomic_traits.h
+atomic_traits.cpp
+guards.h
+guards.cpp

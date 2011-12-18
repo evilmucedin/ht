@@ -2,10 +2,11 @@
 
 #include "atomic_traits.h"
 
-#include <util/generic/vector.h>
-#include <util/string/printf.h>
-
 #include <cerrno>
+#include <vector>
+#include <stdarg.h>
+
+#include "lfht.h"
 
 template <class K, class V>
 class TLFHashTable;
@@ -49,19 +50,19 @@ namespace NLFHT {
         typedef typename TValueTraits<V>::TAtomicValue TAtomicValue;
 
         size_t Size;
-        TAtomic MaxProbeCnt;
+        Atomic MaxProbeCnt;
         volatile bool IsFullFlag;
         
-        TAtomic CopiedCnt;
+        Atomic CopiedCnt;
         size_t CopyTaskSize;
 
-        yvector<TEntryT> Data;
+        std::vector<TEntryT> Data;
 
         TLFHashTableT* Parent;
         TTableT *volatile Next;
         TTableT *volatile NextToDelete;
 
-        TSpinLock Lock;
+        SpinLock Lock;
 
     public:
 
@@ -120,7 +121,7 @@ namespace NLFHT {
                     const TPutCondition& cond, bool& keyInstalled, bool updateAliveCnt = true);
 
         // JUST TO DEBUG 
-        void Print(TOutputStream& ostr);
+        void Print(std::ostream& ostr);
 
     private:    
         void PrepareToDelete();    
@@ -218,7 +219,7 @@ namespace NLFHT {
         }
 
         // JUST TO DEBUG
-        void Trace(TOutputStream& ostr, const char* format, ...);
+        void Trace(std::ostream& ostr, const char* format, ...);
 
         void OnPut() {
             Parent->Guard->OnLocalPut();
@@ -290,7 +291,7 @@ namespace NLFHT {
 
     template <class K, class V>
     TEntry<K, V>* TTable<K, V>::LookUp(const TKey& key, size_t hash, TKey& foundKey) {
-        YASSERT(!KeyIsNone(key));
+        assert(!KeyIsNone(key));
         VERIFY(Size, "Size must be non-zero\n");
         OnLookUp();
 
@@ -324,12 +325,14 @@ namespace NLFHT {
                 break;
             }
 
-            i = i + 1 < Size ? i + 1 : 0;
-            probeCnt++;
+            ++i;
+            if (i == Size)
+                i = 0;
+            ++probeCnt;
         }
         while (probeCnt < Size);
 
-        TAtomicBase oldCnt;
+        AtomicBase oldCnt;
         while (!IsFullFlag && probeCnt > (size_t)(oldCnt = MaxProbeCnt))
             if (AtomicCas(&MaxProbeCnt, probeCnt, oldCnt)) {
                 size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
@@ -395,7 +398,7 @@ namespace NLFHT {
     
     template <class K, class V>
     void TTable<K, V>::CreateNext() {
-        VERIFY(IsFull(), "CreateNext in table %zd when previous table is not full\n", (size_t)this);
+        VERIFY(IsFull(), "CreateNext in table when previous table is not full");
 
         Lock.Acquire();
         if (Next) {
@@ -406,8 +409,8 @@ namespace NLFHT {
         Trace(Cerr, "CreateNext\n");
 #endif
 
-        size_t aliveCnt = Max((TAtomicBase)1, Parent->GuardManager.TotalAliveCnt());
-        size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1 / Parent->Density)));
+        const size_t aliveCnt = Max(Max((AtomicBase)1, Parent->GuardManager.TotalAliveCnt()), (AtomicBase)Size);
+        const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / Parent->Density)));
         ZeroKeyCnt();
 
         Next = new TTableT(Parent, nextSize);
@@ -586,11 +589,8 @@ namespace NLFHT {
             TKey foundKey;
             entry = LookUp(key, hashValue, foundKey);
             result = FetchEntry(key, entry, !KeyIsNone(foundKey), keyInstalled, cond);
-            if (cnt == 10) 
-                VERIFY(false, "Fetch hang up %s %s %s\n", 
-                        ~KeyToString<K>((TKey)entry->Key), 
-                        ~ValueToString<V>((TValue)entry->Value), 
-                        ~cond.ToString());
+            if (cnt == 10)
+                VERIFY(false, "Fetch hang up");
         }
         if (result != CONTINUE)
             return result;
@@ -600,10 +600,7 @@ namespace NLFHT {
 #endif
         for (size_t cnt = 0; (result = PutEntry(entry, value, cond, updateAliveCnt)) == RETRY; cnt++) {
             if (cnt == 10) 
-                VERIFY(false, "Put hang up %s %s %s\n", 
-                        ~KeyToString<K>((TKey)entry->Key), 
-                        ~ValueToString<V>((TValue)entry->Value), 
-                        ~cond.ToString());
+                VERIFY(false, "Put hang up %s %s %s\n");
         }
         return result;
     }
@@ -651,7 +648,7 @@ namespace NLFHT {
 #ifdef TRACE
         Trace(Cerr, "PrepareToDelete\n");
 #endif
-        TAtomicBase currentTableNumber = Parent->TableNumber;
+        AtomicBase currentTableNumber = Parent->TableNumber;
         if (Parent->Head == this && AtomicCas(&Parent->Head, Next, this)) {
             // deleted table from main list
             // now it's only thread that has pointer to it
@@ -695,8 +692,8 @@ namespace NLFHT {
     // JUST TO DEBUG
 
     template <class K, class V>
-    void TTable<K, V>::Print(TOutputStream& ostr) {
-        TStringStream buf;
+    void TTable<K, V>::Print(std::ostream& ostr) {
+        std::stringstream buf;
 
         buf << "Table at " << (size_t)this << ":\n";
 
@@ -710,20 +707,20 @@ namespace NLFHT {
                 << "; " << ValueToString<V>((TValue)Data[i].Value)  
                 << ")\n";
 
-        ostr << buf.Str();
+        ostr << buf.str();
     }
    
     template <class K, class V>
-    void TTable<K, V>::Trace(TOutputStream& ostr, const char* format, ...) {
-        Stroka buf1;
+    void TTable<K, V>::Trace(std::ostream& ostr, const char* format, ...) {
+        char buf1[10000];
         sprintf(buf1, "Thread %zd in table %zd: ", (size_t)&errno, (size_t)this);
 
-        Stroka buf2;
+        char buf2[10000];
         va_list args;
         va_start(args, format);
         vsprintf(buf2, format, args);
         va_end(args);
 
-        ostr << buf1 + buf2;
+        ostr << buf1 << buf2;
     }
 }

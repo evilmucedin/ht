@@ -1,11 +1,8 @@
 #pragma once
 
-#include "platform_specific.h"
+#include "atomic.h"
 
-#include <util/system/atomic.h>
-#include <util/str_stl.h>
-#include <util/digest/numeric.h>
-#include <util/string/cast.h>
+#include <string>
 
 namespace NLFHT {
     // const T* CAS
@@ -14,8 +11,8 @@ namespace NLFHT {
 
     template <class T>
     static bool AtomicCas(const T* volatile* target, const T* exchange, const T* compare) {
-        return ::AtomicCas((TAtomic*)target, (intptr_t)exchange, (intptr_t)compare);
-    }        
+        return ::AtomicCas((Atomic*)target, (AtomicBase)exchange, (AtomicBase)compare);
+    }
 
     // traits classes declarations
 
@@ -89,7 +86,7 @@ namespace NLFHT {
     template <>
     struct TReserved<size_t, 0> {
         static size_t Value() {
-            return 0ull;
+            return 0x7FFFFFFFFFFFFFFCull;
         }
     };
     template <>
@@ -135,7 +132,7 @@ namespace NLFHT {
              return AtomicCas(&dest, newValue, oldValue);
         }
 
-        static Stroka ToString(const TType& t) {
+        static std::string ToString(const TType& t) {
             return ::ToString<size_t>((size_t)t);
         }
 
@@ -150,13 +147,12 @@ namespace NLFHT {
     class TAtomicTraits<size_t> : public TAtomicTraitsBase<size_t> {
     public:
         static bool CompareAndSet(TAtomicType& dest, TType newValue, TType oldValue) {
-            return ::AtomicCas((TAtomic*)&dest, newValue, oldValue);
+            return ::AtomicCas((Atomic*)&dest, newValue, oldValue);
         }
 
-        static Stroka ToString(const TType& t) {
+        static std::string ToString(const TType& t) {
             return ::ToString<size_t>(t);
         }
-
         struct TAreEqual {
             bool operator () (const TType& lft, const TType& rgh) {
                 return lft == rgh;
@@ -165,12 +161,12 @@ namespace NLFHT {
     };
 
     template <>
-    Stroka TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s);
+    std::string TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s);
 
     template <> 
     class TAtomicTraits<const char*>::TAreEqual {
     private:
-        TEqualTo<const char*> EqualTo;
+        std::equal_to<const char*> EqualTo;
     public:
         bool operator () (const TAtomicTraits<const char*>::TType& lft,
                           const TAtomicTraits<const char*>::TType& rgh) {
@@ -206,7 +202,7 @@ namespace NLFHT {
         class THashFunc {
         public:    
             size_t operator () (const TKey& arg) {
-                return NumericHash<const T*>(arg);
+                return HashF<const T*>(arg);
             }
         };
     };
@@ -216,7 +212,7 @@ namespace NLFHT {
     public:
         class THashFunc {
         private:
-            THash<const char*> Hash;
+            HashF<const char*> Hash;
         public:
             size_t operator () (const TKey& arg) {
                 if (arg == None())
@@ -231,7 +227,7 @@ namespace NLFHT {
     public:
         class THashFunc {
         private:
-            THash<size_t> Hash;
+            HashF<size_t> Hash;
         public:
             size_t operator () (const TKey& arg) {
                 if (arg == None() || arg == Tombstone())
@@ -294,8 +290,8 @@ namespace NLFHT {
         }
 
         static void SetCopying(TAtomicValue& p) {
-            size_t& x = (size_t&)p;
-            size_t b62 = (x >> 62) & 1;
+            Atomic& x = (Atomic&)p;
+            const size_t b62 = (x >> 62) & 1;
 
             if (!b62)
                 AtomicOr(x, 1UL << 63);
@@ -326,7 +322,7 @@ namespace NLFHT {
         }
 
         static void SetCopying(TAtomicValue& x) {
-            AtomicOr(x, COPYING_FLAG);
+            AtomicOr((Atomic&)x, COPYING_FLAG);
         } 
 
         static bool IsReserved(const TValue& x) {
@@ -375,7 +371,7 @@ namespace NLFHT {
     };
 
     template <class T>
-    Stroka KeyToString(const typename TKeyTraits<T>::TKey& arg) {
+    std::string KeyToString(const typename TKeyTraits<T>::TKey& arg) {
         TKeysAreEqual<T> areEqual;
         if (areEqual(arg, TKeyTraits<T>::None()))
             return "NONE";
@@ -383,11 +379,11 @@ namespace NLFHT {
     }
 
     template <class T>
-    Stroka ValueToString(const typename TValueTraits<T>::TValue& arg) {
+    std::string ValueToString(const typename TValueTraits<T>::TValue& arg) {
         TValuesAreEqual<T> areEqual;
         typename TValueTraits<T>::TValue argPure = TValueTraits<T>::PureValue(arg); 
 
-        TStringStream tmp;
+        std::stringstream tmp;
         if (areEqual(argPure, TValueTraits<T>::None()))
             tmp << "NONE";
         else if (areEqual(argPure, TValueTraits<T>::Copied()))
@@ -401,6 +397,6 @@ namespace NLFHT {
 
         if (TValueTraits<T>::IsCopying(arg))
             tmp << "(COPYING)";
-        return tmp.Str();
+        return tmp.str();
     }
 }

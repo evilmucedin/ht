@@ -1,7 +1,10 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include <cassert>
+#include <string>
+#include <sstream>
+
 #include <pthread.h>
 
 typedef volatile intptr_t Atomic;
@@ -31,6 +34,16 @@ static inline AtomicBase AtomicIncrement(Atomic& p)
 static inline AtomicBase AtomicDecrement(Atomic& p)
 {
     return __sync_add_and_fetch(&p, -1);
+}
+
+const size_t CACHE_LINE_SIZE = 64;
+
+static inline void AtomicOr(Atomic& x, AtomicBase y) {
+    __sync_or_and_fetch(&x, y);
+}
+
+static inline void AtomicAnd(Atomic& x, AtomicBase y) {
+    __sync_and_and_fetch(&x, y);
 }
 
 static inline void AtomicBarrier()
@@ -98,11 +111,17 @@ T Min(T x, T y)
 }
 
 template<typename T>
+T Max(T x, T y)
+{
+    return (x > y) ? x : y;
+}
+
+template<typename T>
 struct HashF
 {
     size_t operator()(const T& value) const
     {
-        return value;
+        return (size_t)value;
     }
 };
 
@@ -134,7 +153,10 @@ inline unsigned AtomicExchange8(volatile void *ptr, unsigned char x)
 }
 
 #include <linux/futex.h>
-#define SYS_futex 202
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <cerrno>
 
 inline int SysFutex(int* futex, int op, int val1, struct timespec* timeout, void* addr2, int val3)
 {
@@ -225,3 +247,19 @@ public:
     }
 
 };
+
+template<typename T>
+std::string ToString(const T& value)
+{
+    std::stringstream s;
+    s << value;
+    return s.str();
+}
+
+#if defined __GNUC__
+    #define NLFHT_THREAD_LOCAL __thread
+#elif defined _MSC_VER
+    #define NLFHT_THREAD_LOCAL __declspec(thread)
+#else
+    #error do not know how to make thread-local variables at this platform
+#endif

@@ -3,7 +3,7 @@
 namespace NLFHT {
 
     template <>
-    Stroka TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s) {
+    std::string TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s) {
         return s;
     }
 }
