@@ -61,7 +61,7 @@ private:
 
 public:
     typedef NLFHT::TEntry<K, V> TEntry;
-    typedef NLFHT::TConstIterator<K, V> TConstIterator; 
+    typedef NLFHT::TConstIterator<K, V> TConstIterator;
 
     // class incapsulates CAS possibility
     struct TPutCondition {
@@ -124,7 +124,7 @@ public:
     };
 
 public:
-    TLFHashTable(size_t initialSize = 1, double density = 0.5,
+    TLFHashTable(size_t initialSize = 1, double density = .5,
                  const THashFunc& hash = THashFunc(),
                  const TKeysAreEqual& keysAreEqual = TKeysAreEqual(),
                  const TValuesAreEqual& valuesAreEqual = TValuesAreEqual()); 
@@ -226,7 +226,8 @@ TLFHashTable<K, V>::TLFHashTable(size_t initialSize, double density,
     , ToDelete(0)
     , Density(density)
 {
-    Head = new TTable(this, initialSize); 
+    assert(Density < 1.);
+    Head = new TTable(this, initialSize);
     Guard = 0;
 #ifdef TRACE
     Trace(Cerr, "TLFHashTable created\n");
@@ -339,13 +340,12 @@ bool TLFHashTable<K, V>::PutIfAbsent(const TKey& key, const TValue& value, TSear
 
 template <class K, class V>
 bool TLFHashTable<K, V>::PutIfExists(const TKey& key, const TValue& newValue, TSearchHint* hint) {
-    return Put(key, newValue, TPutCondition(TPutCondition::IF_EXISTS, ValueNone()), hint);
+    return Put(key, newValue, TPutCondition(TPutCondition::IF_EXISTS), hint);
 }
 
 template <class K, class V>
 bool TLFHashTable<K, V>::Delete(const TKey& key) {
-    Put(key, ValueNone());
-    return true;
+    return Put(key, ValueDeleted(), TPutCondition(TPutCondition::IF_EXISTS));
 }
 
 template <class K, class V>

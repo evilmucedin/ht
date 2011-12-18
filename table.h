@@ -306,6 +306,7 @@ namespace NLFHT {
 #endif
         foundKey = NoneKey(); 
         TEntryT* returnEntry = 0;
+        const size_t upperBound = ceil(3./Parent->Density);
         do {
             TKey entryKey(Data[i].Key);
 
@@ -330,13 +331,13 @@ namespace NLFHT {
                 i = 0;
             ++probeCnt;
         }
-        while (probeCnt < Size);
+        while (probeCnt < upperBound);
 
         AtomicBase oldCnt;
         while (!IsFullFlag && probeCnt > (size_t)(oldCnt = MaxProbeCnt))
             if (AtomicCas(&MaxProbeCnt, probeCnt, oldCnt)) {
                 size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
-                size_t tooManyKeys = Min(Size, (size_t)(ceil(2 * Parent->Density * Size)));
+                size_t tooManyKeys = Min(Size, (size_t)(ceil(Parent->Density * Size)));
 #ifdef TRACE
                 Trace(Cerr, "MaxProbeCnt now %zd, keysCnt now %zd, tooManyKeys now %zd\n",
                             probeCnt, keysCnt, tooManyKeys);
@@ -405,6 +406,7 @@ namespace NLFHT {
             Lock.Release();
             return;
         }
+
 #ifdef TRACE
         Trace(Cerr, "CreateNext\n");
 #endif
@@ -669,7 +671,7 @@ namespace NLFHT {
 
     template <class K, class V>
     void TConstIterator<K, V>::NextEntry() {
-        Index++;
+        ++Index;
 
         while (Table) {
             for (; Index < Table->Size; Index++) {

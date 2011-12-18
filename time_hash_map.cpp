@@ -28,7 +28,7 @@
 #include <iostream>
 #include <fstream>
 
-static const int DUMP = 100;
+static const int DUMP = 10;
 
 namespace timer
 {
