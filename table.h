@@ -614,7 +614,7 @@ namespace NLFHT {
 #endif
         for (size_t cnt = 0; (result = PutEntry(entry, value, cond, updateAliveCnt)) == RETRY; cnt++) {
             if (cnt == 10) 
-                VERIFY(false, "Put hang up\n");
+                VERIFY(false, "Put hang up");
         }
         return result;
     }
