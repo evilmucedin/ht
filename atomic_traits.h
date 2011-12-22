@@ -31,7 +31,7 @@ namespace NLFHT {
     };
 
     // reserved values
-    // pointers for first double word are alwys invalid
+    // pointers for first double word are always invalid
 
     template <class T>
     struct TReserved<T*, 0> {
@@ -124,7 +124,7 @@ namespace NLFHT {
 
     template <class T>
     class TAtomicTraits<T*> : public TAtomicTraitsBase<T*> {
-    public:    
+    public:
         typedef typename TAtomicTraitsBase<T*>::TType TType;
         typedef typename TAtomicTraitsBase<T*>::TAtomicType TAtomicType;
 
@@ -135,15 +135,9 @@ namespace NLFHT {
         static std::string ToString(const TType& t) {
             return ::ToString<size_t>((size_t)t);
         }
-
-        struct TAreEqual {
-            bool operator () (const TType& lft, const TType& rgh) {
-                return lft == rgh;
-            }
-        };
     };
 
-    template <> 
+    template <>
     class TAtomicTraits<size_t> : public TAtomicTraitsBase<size_t> {
     public:
         static bool CompareAndSet(TAtomicType& dest, TType newValue, TType oldValue) {
@@ -153,27 +147,22 @@ namespace NLFHT {
         static std::string ToString(const TType& t) {
             return ::ToString<size_t>(t);
         }
-        struct TAreEqual {
-            bool operator () (const TType& lft, const TType& rgh) {
-                return lft == rgh;
-            }
-        };
     };
 
     template <>
     std::string TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s);
 
-    template <> 
-    class TAtomicTraits<const char*>::TAreEqual {
-    private:
-        std::equal_to<const char*> EqualTo;
-    public:
-        bool operator () (const TAtomicTraits<const char*>::TType& lft,
-                          const TAtomicTraits<const char*>::TType& rgh) {
-            return EqualTo(lft, rgh);
-        }
-    };
+    // key specifil traits
 
+    template <class T>
+    class TKeyTraitsBase : public TAtomicTraits<T> {
+    public:
+        typedef typename TAtomicTraits<T>::TType TKey;
+        typedef typename TAtomicTraits<T>::TAtomicType TAtomicKey;
+
+        static T None() {
+            return TReserved<T, 0>::Value();
+        }
     // key specifil traits
 
     template <class T>
@@ -197,44 +186,17 @@ namespace NLFHT {
     class TKeyTraits<const T*> : public TKeyTraitsBase<const T*> {
     public:    
         typedef typename TKeyTraitsBase<const T*>::TKey TKey;
-        typedef typename TKeyTraitsBase<const T*>::TAtomicKey y;
-
-        class THashFunc {
-        public:    
-            size_t operator () (const TKey& arg) {
-                return HashF<const T*>(arg);
-            }
-        };
+        typedef typename TKeyTraitsBase<const T*>::TAtomicKey TAtomicKey;
     };
 
     template <>
     class TKeyTraits<const char*> : public TKeyTraitsBase<const char*> {
     public:
-        class THashFunc {
-        private:
-            HashF<const char*> Hash;
-        public:
-            size_t operator () (const TKey& arg) {
-                if (arg == None())
-                    return (size_t)arg;
-                return Hash(arg);
-            }
-        };
     };
 
     template <>
     class TKeyTraits<size_t> : public TKeyTraitsBase<size_t> {
     public:
-        class THashFunc {
-        private:
-            HashF<size_t> Hash;
-        public:
-            size_t operator () (const TKey& arg) {
-                if (arg == None() || arg == Tombstone())
-                    return (size_t)arg;
-                return Hash(arg);
-            }
-        };
     };
 
     // value specific traits
@@ -300,11 +262,15 @@ namespace NLFHT {
         }
 
         static bool IsReserved(const TValue& p) {
-            return (size_t)p < 4;
+            return (size_t)p <= (size_t)TReserved<TValue, 3>::Value();
         }
 
-        void ReadAndRef(TValue& value, const TAtomicValue& atomicValue) {
+        static void ReadAndRef(TValue& value, const TAtomicValue& atomicValue) {
             value = PureValue((TValue)atomicValue);
+        }
+
+        static bool IsGood(const TValue& p) {
+            return (p & SIGNIFICANT_BITS) == p;
         }
     };
 
@@ -312,7 +278,8 @@ namespace NLFHT {
     class TValueTraits<size_t> : public TValueTraitsBase<size_t> {
         static const size_t SIGNIFICANT_BITS = 0x7FFFFFFFFFFFFFFFULL;
         static const size_t COPYING_FLAG = ~SIGNIFICANT_BITS;
-    public:            
+
+    public:
         static TValue PureValue(const TValue& x) {
             return x & SIGNIFICANT_BITS;
         }
@@ -326,48 +293,71 @@ namespace NLFHT {
         } 
 
         static bool IsReserved(const TValue& x) {
-            return x == TReserved<TValue, 0>::Value() || x >= TReserved<TValue, 1>::Value();
+            return x >= TReserved<TValue, 0>::Value();
         }
 
-        void ReadAndRef(TValue& value, const TAtomicValue& atomicValue) {
+        static void ReadAndRef(TValue& value, const TAtomicValue& atomicValue) {
             value = PureValue((TValue)atomicValue);
         }
+
+        static bool IsGood(const TValue& p) {
+            return (p & SIGNIFICANT_BITS) == p;
+        }
     };
 
-    // work with key and value templates
-    // by specifying templates here you can optimize hashtable work
-
-    template <class T> 
+    template <class Key, class KeyCmp>
     class TKeysAreEqual {
-    private:
-        typename TAtomicTraits<T>::TAreEqual AreEqual;
     public:
-        typedef typename TKeyTraits<T>::TKey TKey;
+        TKeysAreEqual(const KeyCmp& areEqual) :
+            AreEqual(areEqual)
+        {
+        }
 
-        bool operator () (const TKey& lft, const TKey& rgh) {
-            if (lft == TKeyTraits<T>::None() || rgh == TKeyTraits<T>::None())
+        bool operator () (const Key& lft, const Key& rgh) {
+            if (lft == TKeyTraits<Key>::None() || rgh == TKeyTraits<Key>::None())
                 return lft == rgh;
             return AreEqual(lft, rgh);
         }
+    private:
+        KeyCmp AreEqual;
     };
 
-    template <class T> 
+    template <class Val, class ValCmp>
     class TValuesAreEqual {
-    private:
-        typename TAtomicTraits<T>::TAreEqual AreEqual;
     public:
-        typedef typename TValueTraits<T>::TValue TValue;
+        TValuesAreEqual(const ValCmp& areEqual) :
+            AreEqual(areEqual)
+        {
+        }
 
-        bool operator () (const TValue& lft, const TValue& rgh) {
-            if (TValueTraits<T>::IsCopying(lft) != TValueTraits<T>::IsCopying(rgh))
+        bool operator () (const Val& lft, const Val& rgh) {
+            if (TValueTraits<Val>::IsCopying(lft) != TValueTraits<Val>::IsCopying(rgh))
                 return false;
-            TValue lftPure = TValueTraits<T>::PureValue(lft);
-            TValue rghPure = TValueTraits<T>::PureValue(rgh);
-            if (TValueTraits<T>::IsReserved(lftPure) ||
-                TValueTraits<T>::IsReserved(rghPure))
+            Val lftPure = TValueTraits<Val>::PureValue(lft);
+            Val rghPure = TValueTraits<Val>::PureValue(rgh);
+            if (TValueTraits<Val>::IsReserved(lftPure) || TValueTraits<Val>::IsReserved(rghPure))
                 return lft == rgh;
             return AreEqual(lft, rgh);
         }
+    private:
+        ValCmp AreEqual;
+    };
+
+    template <class Key, class HashFn>
+    class THashFunc {
+    public:
+        THashFunc(const HashFn& hash) :
+            Hash(hash)
+        {
+        }
+
+        size_t operator () (const Key& key) {
+            if (key == TKeyTraits<Key>::None())
+                return 0;
+            return Hash(key);
+        }        
+    private:
+        HashFn Hash;
     };
 
     template <class T>

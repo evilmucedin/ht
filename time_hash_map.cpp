@@ -487,15 +487,13 @@ void measure_mt_map(const std::string& mapString_)
     }
 }
 
-lf_hash_map lfHashMap();
-
 int main(int argc_,char **argv_)
 {
     print_system_info();
     nThreads = (argc_ == 1) ? 4 : ::atoi(argv_[1]);
 
     size_t iters = default_iters;
-    createInput(iters,1);
+    createInput(iters, 1);
 
     TLFHRegistration registration;
 

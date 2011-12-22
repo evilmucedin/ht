@@ -3,35 +3,76 @@
 #include <limits>
 
 namespace NLFHT {
-    const AtomicBase TGuard::NO_OWNER = 0;
-    const AtomicBase TGuard::NO_TABLE = std::numeric_limits<AtomicBase>::max();
+    const TAtomicBase TGuard::NO_OWNER = 0;
+    const TAtomicBase TGuard::NO_TABLE = Max<TAtomicBase>();
 
-    void TThreadGuardTable::InitializePerThread() {
-        GuardTable = new std::unordered_map<void*, TGuard*>(42);
+    void TThreadGuardTable::RegisterTable(TLFHashTableBase* pTable) {
+       if (!GuardTable) 
+           GuardTable = new TGuardTable;
+        (*GuardTable)[pTable] = pTable->AcquireGuard();
     }
 
-    void TThreadGuardTable::FinalizePerThread() {
-        for (TGuardTable::iterator it = GuardTable->begin(); it != GuardTable->end(); it++)
-            it->second->Release();
-        delete GuardTable;
+    void TThreadGuardTable::ForgetTable(TLFHashTableBase* pTable) {
+        TGuardTable::iterator it = GuardTable->find(pTable);
+        it->second->Release();
+        GuardTable->erase(it);
+
+        if (GuardTable->empty())
+            delete (TGuardTable*)GuardTable;
+        GuardTable = (TGuardTable*)(0);
     }
 
     NLFHT_THREAD_LOCAL TThreadGuardTable::TGuardTable *TThreadGuardTable::GuardTable = 0;
 
-    TGuard::TGuard() :
+    TGuard::TGuard(TGuardManager* parent) :
         Next(0),
-        Owner(NO_OWNER),
-        GuardedTable(NO_TABLE),
-        PTDLock(false),
-        LocalPutCnt(0),
-        LocalCopyCnt(0),
-        LocalDeleteCnt(0),
-        LocalLookUpCnt(0),
-        GlobalPutCnt(0),
-        GlobalGetCnt(0),
+        Parent(parent),
+        Owner(NO_OWNER)
+    {
+        Init();    
+    }
+
+    void TGuard::Init() {
+        AliveCnt = 0;
+        KeyCnt = 0;
+
+        GuardedTable = NO_TABLE;
+        PTDLock = false;
+        
+        // JUST TO DEBUG
+        LocalPutCnt = 0;
+        LocalCopyCnt = 0;
+        LocalDeleteCnt = 0;
+        LocalLookUpCnt = 0;
+        GlobalPutCnt = 0;
+        GlobalGetCnt = 0;
+    }
+
+    void TGuard::Release() {
+        Owner = NO_OWNER;
+        AtomicAdd(Parent->KeyCnt, KeyCnt);
+        AtomicAdd(Parent->AliveCnt, AliveCnt);
+        Init();
+    }
+
+    TGuardManager::TGuardManager() :
+        Head(0),
         AliveCnt(0),
         KeyCnt(0)
     {
+    }
+
+    TGuardManager::~TGuardManager() {
+        // is to be called when all threads have called ForgetTable
+        TGuard* current = Head;
+        while (current) {
+            TGuard* tmp = current;
+            current = current->Next;
+            
+            VERIFY(tmp->Owner == TGuard::NO_OWNER, 
+                   "Some thread haven't finish his work yet\n");
+            delete tmp;
+        }
     }
 
     TGuard* TGuardManager::AcquireGuard(size_t owner) {
@@ -50,17 +91,15 @@ namespace NLFHT {
         return result;
     }
 
-    AtomicBase TGuardManager::TotalAliveCnt() {
-        AtomicBase result = 0;
+    TAtomicBase TGuardManager::TotalAliveCnt() {
+        TAtomicBase result = AliveCnt;
         for (TGuard* current = Head; current; current = current->Next)
             result += current->AliveCnt;
-        // TotalAliveCnt can be even negative in some cases,
-        // cause summing a list is not atomic
         return result;
     }
 
-    size_t TGuardManager::TotalKeyCnt() {
-        size_t result = 0;
+    TAtomicBase TGuardManager::TotalKeyCnt() {
+        TAtomicBase result = KeyCnt;
         for (TGuard* current = Head; current; current = current->Next)
             result += current->KeyCnt;
         return result;
@@ -69,18 +108,38 @@ namespace NLFHT {
     void TGuardManager::ZeroKeyCnt() {
         for (TGuard* current = Head; current; current = current->Next)
             current->KeyCnt = 0;
+        KeyCnt = 0;
     }
 
     bool TGuardManager::CanPrepareToDelete() {
         for (TGuard* current = Head; current; current = current->Next)
             if (current->PTDLock)
                 return false;
-        return true;            
+        return true;
     }
 
     // JUST TO DEBUG
 
-    void TGuardManager::PrintStatistics(std::ostream& str) {
+    Stroka TGuard::ToString() {
+        TStringStream tmp;
+        tmp << "TGuard " << '\n'
+            << "Owner " << Owner << '\n'
+            << "KeyCnt " << KeyCnt << '\n'
+            << "AliveCnt " << AliveCnt << '\n'; 
+        return tmp.Str();
+    }
+
+    Stroka TGuardManager::ToString() {
+        TStringStream tmp;
+        tmp << "GuardManager --------------\n";
+        for (TGuard* current = Head; current; current = current->Next)
+            tmp << current->ToString();
+        tmp << "Common KeyCnt " << KeyCnt << '\n'
+            << "Common AliveCnt " << AliveCnt << '\n';
+        return tmp.Str();
+    }
+
+    void TGuardManager::PrintStatistics(TOutputStream& str) {
         size_t LocalPutCnt = 0, LocalCopyCnt = 0, LocalDeleteCnt = 0, LocalLookUpCnt = 0;
         size_t GlobalPutCnt = 0, GlobalGetCnt = 0;
         for (TGuard* current = Head; current; current = current->Next) {
@@ -101,14 +160,14 @@ namespace NLFHT {
             << "GlobalGetCnt " << GlobalGetCnt << '\n';
     }
 
-    TGuard* TGuardManager::CreateGuard(AtomicBase owner) {
-        TGuard* guard = new TGuard;
+    TGuard* TGuardManager::CreateGuard(TAtomicBase owner) {
+        TGuard* guard = new TGuard(this);
         guard->Owner = owner;
         while (true) {
             guard->Next = Head;
             if (AtomicCas(&Head, guard, guard->Next))
                break;
-        } 
+        }
         return guard;
     }
 };

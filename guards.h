@@ -4,32 +4,18 @@
 #include "unordered_map"
 
 namespace NLFHT {
+    class TLFHashTableBase;
+
+    class TGuardManager;
+
     class TGuard {
-    private:
+    public:
         friend class TGuardManager;
 
-        static const AtomicBase NO_OWNER;
-        static const AtomicBase NO_TABLE;
-
-        TGuard* Next;    
-        Atomic Owner;
-
-        volatile size_t GuardedTable;
-        volatile bool PTDLock;
-        // to exclude probability, that data from different
-        // tables are in the same cache line
-        char Padding [CACHE_LINE_SIZE];
-
-        // JUST TO DEBUG
-        Atomic LocalPutCnt, LocalCopyCnt, LocalDeleteCnt, LocalLookUpCnt;
-        Atomic GlobalPutCnt, GlobalGetCnt;
-
     public:
-        TGuard();
+        TGuard(TGuardManager* parent);
 
-        void Release() {
-            Owner = NO_OWNER;
-        }
+        void Release();
 
         void GuardTable(AtomicBase tableNumber) {
             GuardedTable = tableNumber;
@@ -76,33 +62,57 @@ namespace NLFHT {
             AtomicIncrement((Atomic&)KeyCnt);
         }
 
-    public:    
-        Atomic AliveCnt;
-        volatile size_t KeyCnt;
+        // JUST TO DEBUG
+        Stroka ToString();
+        
+    private:
+        void Init();
+
+    private:
+        static const TAtomicBase NO_OWNER;
+        static const TAtomicBase NO_TABLE;
+
+        TGuard* Next;
+        TGuardManager* Parent;
+
+        TAtomic Owner;
+
+        volatile size_t GuardedTable;
+        volatile bool PTDLock;
+        // to exclude probability, that data from different
+        // tables are in the same cache line
+        char Padding [CACHE_LINE_SIZE];
+
+        // JUST TO DEBUG
+        TAtomic LocalPutCnt, LocalCopyCnt, LocalDeleteCnt, LocalLookUpCnt;
+        TAtomic GlobalPutCnt, GlobalGetCnt;
+
+        TAtomic AliveCnt;
+        TAtomic KeyCnt;
     };
 
-    class TThreadGuardTable {
+    class TThreadGuardTable : TNonCopyable {
     public:
-        static void InitializePerThread();
-        static void FinalizePerThread();
+        static void RegisterTable(TLFHashTableBase* pTable);
+        static void ForgetTable(TLFHashTableBase* pTable);
 
-        static TGuard*& ForTable(void *tableAddress) {
-            assert(GuardTable);
-            return (*GuardTable)[tableAddress];
+        static TGuard* ForTable(TLFHashTableBase *pTable) {
+            YASSERT(GuardTable);
+            return (*GuardTable)[pTable];
         }
-    private:        
-        typedef std::unordered_map<void*, TGuard*> TGuardTable;
-        static NLFHT_THREAD_LOCAL TGuardTable* GuardTable;        
+    private:
+        // yhash_map has too big constant
+        // more specialized hash_map should be used here
+        typedef yhash_map<TLFHashTableBase*, TGuard*> TGuardTable;
+        POD_STATIC_THREAD(TGuardTable*) GuardTable;
     };
 
     class TGuardManager {
-    private:
-        TGuard *volatile Head;
     public:
-        TGuardManager() :
-            Head(0)
-        {
-        }
+        friend class TGuard;
+
+        TGuardManager();
+        ~TGuardManager();        
 
         TGuard* AcquireGuard(size_t owner);
 
@@ -112,13 +122,20 @@ namespace NLFHT {
         AtomicBase TotalAliveCnt();
 
         // returns approximate value 
-        size_t TotalKeyCnt();
+        TAtomicBase TotalKeyCnt();
         void ZeroKeyCnt();
 
         bool CanPrepareToDelete();
 
         // JUST TO DEBUG
-        void PrintStatistics(std::ostream& str);
+        void PrintStatistics(TOutputStream& str);
+
+        Stroka ToString();
+    private:
+        TGuard *volatile Head;
+
+        TAtomic AliveCnt;
+        TAtomic KeyCnt;
 
     private:
         TGuard* CreateGuard(AtomicBase owner);
