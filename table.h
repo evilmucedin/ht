@@ -78,11 +78,11 @@ namespace NLFHT {
             }
         }
 
-        bool IsFull() const {
+        inline bool IsFull() const {
             return IsFullFlag;
         }
 
-        TTableT* GetNext() {
+        inline TTableT* GetNext() {
             return Next;
         }
 
@@ -254,11 +254,11 @@ namespace NLFHT {
             return Table->Data[Index].Value;
         }
 
-        TConstIteratorT& operator ++ (int) {
+        TConstIteratorT& operator++(int) {
             NextEntry();
             return *this;
         }
-        TConstIteratorT& operator ++ () {
+        TConstIteratorT& operator++() {
             NextEntry();
             return *this;
         }

@@ -28,7 +28,7 @@ release: test
 release-profile: CXXX += $(RELEASE_OPTS) -fprofile-use
 release-profile: test
 
-valgrind: CXXX += -DNDEBUG -O2
+valgrind: CXXX += -DNDEBUG -O2 -g
 valgrind: test
 
 profile: CXXX += $(RELEASE_OPTS) -fprofile-generate

@@ -494,7 +494,7 @@ void measure_mt_map(const std::string& mapString_)
 
 int main(int argc_,char **argv_)
 {
-    const size_t NN = N;
+    const size_t NN = N/10;
     createInput(NN, 1);
     std::cout << "map begin" << std::endl;
     time_map_grow_predicted<lf_hash_map,0>(NN);
