@@ -28,7 +28,7 @@
 #include <iostream>
 #include <fstream>
 
-static const int DUMP = 10;
+static const int DUMP = 1;
 
 namespace timer
 {
@@ -263,7 +263,7 @@ template<class MapType> inline bool find_map(MapType& map_,size_t key_) { Atomic
 template<> 
 inline bool find_map(lf_hash_map& map_,size_t key_) 
 { 
-    return map_.Get(key_) != map_.Tombstone();
+    return map_.Get(key_) != map_.NotFound();
 }
 
 static const size_t default_iters = 30000000/DUMP;
@@ -294,6 +294,8 @@ template<class MapType, int Flags>
 static void time_map_grow(size_t iters_) 
 {
     MapType map;
+    TLFHTRegistration registration(map);
+
     elapsed_timer timer;
 
     timer.reset();
@@ -310,6 +312,7 @@ template<class MapType,int Flags>
 static void time_map_grow_predicted(size_t iters_) 
 {
     MapType map(iters_);
+    TLFHTRegistration registration(map);
     elapsed_timer timer;
 
 
@@ -325,6 +328,7 @@ template<class MapType,int Flags>
 static void time_map_find(size_t iters_) 
 {
     MapType map;
+    TLFHTRegistration registration(map);
     elapsed_timer timer;
     size_t r;
     size_t i;
@@ -349,6 +353,7 @@ template<class MapType,int Flags>
 static void time_map_erase(size_t iters_) 
 {
     MapType map;
+    TLFHTRegistration registration(map);
     elapsed_timer timer;
     size_t i;
 
@@ -391,7 +396,7 @@ const size_t N = 25000000/DUMP;
 template<class MapType,uint32_t Flags>
 void mtTestThreadEntryPoint(MapType& map_,pthread::barrier& barrier_,unsigned seed_,double& elapsedTime_)
 {
-    TLFHRegistration registration;
+    TLFHTRegistration registration(map_);
     std::vector<size_t> keys;
 
     boost::mt19937 gen(seed_);
@@ -494,8 +499,6 @@ int main(int argc_,char **argv_)
 
     size_t iters = default_iters;
     createInput(iters, 1);
-
-    TLFHRegistration registration;
 
     std::cout << "START WARM UP SYSTEM BEFORE EXECUTING TEST" << std::endl;
     for (size_t i = 0; i != 2; ++i)

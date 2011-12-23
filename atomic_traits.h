@@ -152,19 +152,6 @@ namespace NLFHT {
     template <>
     std::string TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s);
 
-    // key specifil traits
-
-    template <class T>
-    class TKeyTraitsBase : public TAtomicTraits<T> {
-    public:
-        typedef typename TAtomicTraits<T>::TType TKey;
-        typedef typename TAtomicTraits<T>::TAtomicType TAtomicKey;
-
-        static T None() {
-            return TReserved<T, 0>::Value();
-        }
-    // key specifil traits
-
     template <class T>
     class TKeyTraitsBase : public TAtomicTraits<T> {
     public:
@@ -308,16 +295,17 @@ namespace NLFHT {
     template <class Key, class KeyCmp>
     class TKeysAreEqual {
     public:
-        TKeysAreEqual(const KeyCmp& areEqual) :
-            AreEqual(areEqual)
+        TKeysAreEqual(const KeyCmp& areEqual)
+            : AreEqual(areEqual)
         {
         }
 
-        bool operator () (const Key& lft, const Key& rgh) {
+        inline bool operator() (const Key& lft, const Key& rgh) {
             if (lft == TKeyTraits<Key>::None() || rgh == TKeyTraits<Key>::None())
                 return lft == rgh;
             return AreEqual(lft, rgh);
         }
+
     private:
         KeyCmp AreEqual;
     };
@@ -325,12 +313,12 @@ namespace NLFHT {
     template <class Val, class ValCmp>
     class TValuesAreEqual {
     public:
-        TValuesAreEqual(const ValCmp& areEqual) :
-            AreEqual(areEqual)
+        TValuesAreEqual(const ValCmp& areEqual)
+            : AreEqual(areEqual)
         {
         }
 
-        bool operator () (const Val& lft, const Val& rgh) {
+        inline bool operator()(const Val& lft, const Val& rgh) {
             if (TValueTraits<Val>::IsCopying(lft) != TValueTraits<Val>::IsCopying(rgh))
                 return false;
             Val lftPure = TValueTraits<Val>::PureValue(lft);
@@ -362,25 +350,23 @@ namespace NLFHT {
 
     template <class T>
     std::string KeyToString(const typename TKeyTraits<T>::TKey& arg) {
-        TKeysAreEqual<T> areEqual;
-        if (areEqual(arg, TKeyTraits<T>::None()))
+        if (arg == TKeyTraits<T>::None())
             return "NONE";
         return TAtomicTraits<T>::ToString(arg);
     }
 
     template <class T>
     std::string ValueToString(const typename TValueTraits<T>::TValue& arg) {
-        TValuesAreEqual<T> areEqual;
         typename TValueTraits<T>::TValue argPure = TValueTraits<T>::PureValue(arg); 
 
         std::stringstream tmp;
-        if (areEqual(argPure, TValueTraits<T>::None()))
+        if (argPure == TValueTraits<T>::None())
             tmp << "NONE";
-        else if (areEqual(argPure, TValueTraits<T>::Copied()))
+        else if (argPure == TValueTraits<T>::Copied())
             tmp << "COPIED";
-        else if (areEqual(argPure, TValueTraits<T>::Baby()))
+        else if (argPure, TValueTraits<T>::Baby())
             tmp << "BABY";
-        else if (areEqual(argPure, TValueTraits<T>::Deleted()))
+        else if (argPure == TValueTraits<T>::Deleted())
             tmp << "DELETED";
         else
             tmp << TAtomicTraits<T>::ToString(argPure);

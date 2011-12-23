@@ -5,6 +5,7 @@
 
 #include <cstdlib>
 #include <cmath>
+#include <limits>
 
 namespace NLFHT {
     class TLFHashTableBase {
@@ -13,7 +14,7 @@ namespace NLFHT {
             return GuardManager.AcquireGuard((size_t)&Guard);
         }
     protected:
-        POD_STATIC_THREAD(TGuard*) Guard;
+        static NLFHT_THREAD_LOCAL TGuard* Guard;
         TGuardManager GuardManager;
     };
 }
@@ -21,14 +22,13 @@ namespace NLFHT {
 template <
     typename Key, 
     typename Val,
-    class KeyCmp = TEqualTo<Key>,
-    class HashFn = THash<Key>,
-    class ValCmp = TEqualTo<Val>,
-    class Alloc = DEFAULT_ALLOCATOR(Val)
+    class KeyCmp = EqualToF<Key>,
+    class HashFn = HashF<Key>,
+    class ValCmp = EqualToF<Val>
 >
 class TLFHashTable : public NLFHT::TLFHashTableBase {
 public:
-    typedef TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc> TSelf;
+    typedef TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp> TSelf;
 
     friend class NLFHT::TTable<TSelf>;
 
@@ -89,8 +89,8 @@ public:
 
     class TSearchHint {
         public:        
-            friend class TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc>;
-            friend class NLFHT::TTable< TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc> >;
+            friend class TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp>;
+            friend class NLFHT::TTable< TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp> >;
 
         public:
             TSearchHint() :
@@ -144,8 +144,8 @@ public:
     TConstIterator Begin() const;
 
     // JUST TO DEBUG
-    void Print(TOutputStream& ostr);
-    void PrintStatistics(TOutputStream& str) {
+    void Print(std::ostream& ostr);
+    void PrintStatistics(std::ostream& str) {
         GuardManager.PrintStatistics(str);
     }
 
@@ -167,9 +167,9 @@ private:
     THTValueTraits ValueTraits;
 
     // number of head table (in fact it can be less or equal)
-    TAtomic TableNumber;
+    Atomic TableNumber;
     // number of head table of ToDelete list (in fact it can be greater or equal) 
-    TAtomic TableToDeleteNumber;
+    Atomic TableToDeleteNumber;
 
     // guarded related stuff
 
@@ -207,10 +207,10 @@ private:
     }
 
     static std::string KeyToString(const TKey& key) {
-        return NLFHT::KeyToString<K>(key);
+        return NLFHT::KeyToString<TKey>(key);
     }
     static std::string ValueToString(const TValue& value) {
-        return NLFHT::ValueToString<V>(value);
+        return NLFHT::ValueToString<TValue>(value);
     }
 
     // JUST TO DEBUG
@@ -228,8 +228,8 @@ class TLFHTRegistration {
 private:
     NLFHT::TLFHashTableBase* PTable;
 public:
-    template <class K, class V, class KC, class HF, class VC, class A>
-    TLFHTRegistration(TLFHashTable<K, V, KC, HF, VC, A>& table) : 
+    template <class K, class V, class KC, class HF, class VC>
+    TLFHTRegistration(TLFHashTable<K, V, KC, HF, VC>& table) :
         PTable(static_cast<NLFHT::TLFHashTableBase*>(&table))           
     {
         NLFHT::TThreadGuardTable::RegisterTable(PTable);
@@ -239,8 +239,8 @@ public:
     }
 };
 
-template <class K, class V, class KC, class HF, class VC, class A>
-TLFHashTable<K, V, KC, HF, VC, A>::TLFHashTable(size_t initialSize, double density,
+template <class K, class V, class KC, class HF, class VC>
+TLFHashTable<K, V, KC, HF, VC>::TLFHashTable(size_t initialSize, double density,
                                  const TKeyCmp& keysAreEqual,
                                  const THashFn& hash,
                                  const TValCmp& valuesAreEqual)
@@ -260,8 +260,8 @@ TLFHashTable<K, V, KC, HF, VC, A>::TLFHashTable(size_t initialSize, double densi
 #endif
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-TLFHashTable<K, V, KC, HF, VC, A>::~TLFHashTable() {
+template <class K, class V, class KC, class HF, class VC>
+TLFHashTable<K, V, KC, HF, VC>::~TLFHashTable() {
 #ifdef TRACE_MEM
     Cerr << GuardManager.ToString();
 #endif
@@ -277,10 +277,10 @@ TLFHashTable<K, V, KC, HF, VC, A>::~TLFHashTable() {
     }
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-typename TLFHashTable<K, V, KC, HF, VC, A>::TValue 
-TLFHashTable<K, V, KC, HF, VC, A>::Get(const TKey& key, TSearchHint* hint) {
-    YASSERT(!KeysAreEqual(key, KeyNone()));
+template <class K, class V, class KC, class HF, class VC>
+typename TLFHashTable<K, V, KC, HF, VC>::TValue
+TLFHashTable<K, V, KC, HF, VC>::Get(const TKey& key, TSearchHint* hint) {
+    assert(!KeysAreEqual(key, KeyNone()));
 #ifdef TRACE
     Trace(Cerr, "TLFHashTable.Get(%s)\n", ~KeyToString(key));
 #endif
@@ -312,11 +312,11 @@ TLFHashTable<K, V, KC, HF, VC, A>::Get(const TKey& key, TSearchHint* hint) {
 }
 
 // returns true if new key appeared in a table
-template <class K, class V, class KC, class HF, class VC, class A>
-bool TLFHashTable<K, V, KC, HF, VC, A>::
+template <class K, class V, class KC, class HF, class VC>
+bool TLFHashTable<K, V, KC, HF, VC>::
 Put(const TKey& key, const TValue& value, TPutCondition cond, TSearchHint* hint) {
-    YASSERT(THTValueTraits::IsGood(value));
-    YASSERT(!KeysAreEqual(key, KeyNone()));
+    assert(THTValueTraits::IsGood(value));
+    assert(!KeysAreEqual(key, KeyNone()));
 #ifdef TRACE
     Trace(Cerr, "TLFHashTable.Put key \"%s\" and value \"%s\" under condition %s..\n",
             ~KeyToString(key), ~ValueToString(value),
@@ -361,40 +361,40 @@ Put(const TKey& key, const TValue& value, TPutCondition cond, TSearchHint* hint)
     return result == TTable::SUCCEEDED;
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-bool TLFHashTable<K, V, KC, HF, VC, A>::
+template <class K, class V, class KC, class HF, class VC>
+bool TLFHashTable<K, V, KC, HF, VC>::
 PutIfMatch(const TKey& key, const TValue& newValue, const TValue& oldValue, TSearchHint* hint) {
     return Put(key, newValue, TPutCondition(TPutCondition::IF_MATCHES, oldValue), hint);
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-bool TLFHashTable<K, V, KC, HF, VC, A>::
+template <class K, class V, class KC, class HF, class VC>
+bool TLFHashTable<K, V, KC, HF, VC>::
 PutIfAbsent(const TKey& key, const TValue& value, TSearchHint* hint) {
     return Put(key, value, TPutCondition(TPutCondition::IF_ABSENT, ValueBaby()), hint);
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-bool TLFHashTable<K, V, KC, HF, VC, A>::
+template <class K, class V, class KC, class HF, class VC>
+bool TLFHashTable<K, V, KC, HF, VC>::
 PutIfExists(const TKey& key, const TValue& newValue, TSearchHint* hint) {
     return Put(key, newValue, TPutCondition(TPutCondition::IF_EXISTS), hint);
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-bool TLFHashTable<K, V, KC, HF, VC, A>::Delete(const TKey& key) {
+template <class K, class V, class KC, class HF, class VC>
+bool TLFHashTable<K, V, KC, HF, VC>::Delete(const TKey& key) {
     return Put(key, ValueNone(), TPutCondition(TPutCondition::IF_EXISTS));
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-bool TLFHashTable<K, V, KC, HF, VC, A>::DeleteIfMatch(const TKey& key, const TValue& oldValue) {
+template <class K, class V, class KC, class HF, class VC>
+bool TLFHashTable<K, V, KC, HF, VC>::DeleteIfMatch(const TKey& key, const TValue& oldValue) {
     return Put(key, ValueNone(), TPutCondition(TPutCondition::IF_MATCHES, oldValue)); 
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-void TLFHashTable<K, V, KC, HF, VC, A>::StartGuarding() {
+template <class K, class V, class KC, class HF, class VC>
+void TLFHashTable<K, V, KC, HF, VC>::StartGuarding() {
     Guard = NLFHT::TThreadGuardTable::ForTable(static_cast<TLFHashTableBase*>(this));
 
     while (true) {
-        TAtomicBase CurrentTableNumber = TableNumber;
+        AtomicBase CurrentTableNumber = TableNumber;
 #ifdef TRACE
         Trace(Cerr, "Try to guard table %lld\n", CurrentTableNumber);
 #endif
@@ -411,8 +411,8 @@ void TLFHashTable<K, V, KC, HF, VC, A>::StartGuarding() {
     }
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-void TLFHashTable<K, V, KC, HF, VC, A>::StopGuarding() {
+template <class K, class V, class KC, class HF, class VC>
+void TLFHashTable<K, V, KC, HF, VC>::StopGuarding() {
     // See comments in StartGuarding.
     if (!Guard)
         Guard = GuardManager.AcquireGuard((size_t)&Guard);
@@ -423,8 +423,8 @@ void TLFHashTable<K, V, KC, HF, VC, A>::StopGuarding() {
 #endif
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-void TLFHashTable<K, V, KC, HF, VC, A>::TryToDelete() {
+template <class K, class V, class KC, class HF, class VC>
+void TLFHashTable<K, V, KC, HF, VC>::TryToDelete() {
 #ifdef TRACE
     Trace(Cerr, "TryToDelete\n");
 #endif
@@ -432,7 +432,7 @@ void TLFHashTable<K, V, KC, HF, VC, A>::TryToDelete() {
     if (!toDel) 
         return;
     TTable* oldHead = Head;
-    TAtomicBase firstGuardedTable = GuardManager.GetFirstGuardedTable();
+    AtomicBase firstGuardedTable = GuardManager.GetFirstGuardedTable();
 
     // if the following is true, it means that no thread works
     // with the tables to ToDelete list
@@ -476,19 +476,19 @@ void TLFHashTable<K, V, KC, HF, VC, A>::TryToDelete() {
         }
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-typename TLFHashTable<K, V, KC, HF, VC, A>::TConstIterator
-TLFHashTable<K, V, KC, HF, VC, A>::Begin() const {
+template <class K, class V, class KC, class HF, class VC>
+typename TLFHashTable<K, V, KC, HF, VC>::TConstIterator
+TLFHashTable<K, V, KC, HF, VC>::Begin() const {
     TConstIterator begin(Head, -1);
-    begin++;
+    ++begin;
     return begin;
 }
 
 // JUST TO DEBUG
 
-template <class K, class V, class KC, class HF, class VC, class A>
-void TLFHashTable<K, V, KC, HF, VC, A>::Print(TOutputStream& ostr) {
-    TStringStream buf;
+template <class K, class V, class KC, class HF, class VC>
+void TLFHashTable<K, V, KC, HF, VC>::Print(std::ostream& ostr) {
+    std::stringstream buf;
     buf << "TLFHashTable printout\n";
  
     buf << '\n';
@@ -507,8 +507,8 @@ void TLFHashTable<K, V, KC, HF, VC, A>::Print(TOutputStream& ostr) {
     ostr << buf.str() << '\n';
 }
 
-template <class K, class V, class KC, class HF, class VC, class A>
-size_t TLFHashTable<K, V, KC, HF, VC, A>::Size() const {
+template <class K, class V, class KC, class HF, class VC>
+size_t TLFHashTable<K, V, KC, HF, VC>::Size() const {
     size_t result = 0;
     TConstIterator it = Begin();
     while (it.IsValid()) {
@@ -518,8 +518,8 @@ size_t TLFHashTable<K, V, KC, HF, VC, A>::Size() const {
     return result;
 }
 
-template <class K, class V>
-void TLFHashTable<K, V>::Trace(std::ostream& ostr, const char* format, ...) {
+template <class K, class V, class KC, class HF, class VC>
+void TLFHashTable<K, V, KC, HF, VC>::Trace(std::ostream& ostr, const char* format, ...) {
     char buf1[10000];
     sprintf(buf1, "Thread %zd: ", (size_t)&errno);
 

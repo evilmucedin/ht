@@ -63,19 +63,19 @@ namespace NLFHT {
         }
 
         // JUST TO DEBUG
-        Stroka ToString();
+        std::string ToString();
         
     private:
         void Init();
 
     private:
-        static const TAtomicBase NO_OWNER;
-        static const TAtomicBase NO_TABLE;
+        static const AtomicBase NO_OWNER;
+        static const AtomicBase NO_TABLE;
 
         TGuard* Next;
         TGuardManager* Parent;
 
-        TAtomic Owner;
+        Atomic Owner;
 
         volatile size_t GuardedTable;
         volatile bool PTDLock;
@@ -84,27 +84,27 @@ namespace NLFHT {
         char Padding [CACHE_LINE_SIZE];
 
         // JUST TO DEBUG
-        TAtomic LocalPutCnt, LocalCopyCnt, LocalDeleteCnt, LocalLookUpCnt;
-        TAtomic GlobalPutCnt, GlobalGetCnt;
+        Atomic LocalPutCnt, LocalCopyCnt, LocalDeleteCnt, LocalLookUpCnt;
+        Atomic GlobalPutCnt, GlobalGetCnt;
 
-        TAtomic AliveCnt;
-        TAtomic KeyCnt;
+        Atomic AliveCnt;
+        Atomic KeyCnt;
     };
 
-    class TThreadGuardTable : TNonCopyable {
+    class TThreadGuardTable : NonCopyable {
     public:
         static void RegisterTable(TLFHashTableBase* pTable);
         static void ForgetTable(TLFHashTableBase* pTable);
 
         static TGuard* ForTable(TLFHashTableBase *pTable) {
-            YASSERT(GuardTable);
+            assert(GuardTable);
             return (*GuardTable)[pTable];
         }
     private:
         // yhash_map has too big constant
         // more specialized hash_map should be used here
-        typedef yhash_map<TLFHashTableBase*, TGuard*> TGuardTable;
-        POD_STATIC_THREAD(TGuardTable*) GuardTable;
+        typedef std::unordered_map<TLFHashTableBase*, TGuard*> TGuardTable;
+        static NLFHT_THREAD_LOCAL TGuardTable* GuardTable;
     };
 
     class TGuardManager {
@@ -122,20 +122,21 @@ namespace NLFHT {
         AtomicBase TotalAliveCnt();
 
         // returns approximate value 
-        TAtomicBase TotalKeyCnt();
+        AtomicBase TotalKeyCnt();
         void ZeroKeyCnt();
 
         bool CanPrepareToDelete();
 
         // JUST TO DEBUG
-        void PrintStatistics(TOutputStream& str);
+        void PrintStatistics(std::ostream& str);
 
-        Stroka ToString();
+        std::string ToString();
+
     private:
         TGuard *volatile Head;
 
-        TAtomic AliveCnt;
-        TAtomic KeyCnt;
+        Atomic AliveCnt;
+        Atomic KeyCnt;
 
     private:
         TGuard* CreateGuard(AtomicBase owner);

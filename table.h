@@ -3,13 +3,11 @@
 #include "atomic_traits.h"
 
 #include <cerrno>
+#include <cmath>
 #include <vector>
 #include <stdarg.h>
 
 #include "lfht.h"
-
-template <class K, class V>
-class TLFHashTable;
 
 namespace NLFHT {
     template<class K, class V>
@@ -61,7 +59,7 @@ namespace NLFHT {
     public:
         TTable(TOwner* parent, size_t size)
             : Size(size)
-            , MaxProbeCnt(0)
+            , MaxProbeCnt( Min(size_t(logf(size)) + 1, size - 1) )
             , IsFullFlag(false)
             , CopiedCnt(0)
             , CopyTaskSize(0)
@@ -108,19 +106,19 @@ namespace NLFHT {
 
     private:
         size_t Size;
-        TAtomic MaxProbeCnt;
+        Atomic MaxProbeCnt;
         volatile bool IsFullFlag;
         
-        TAtomic CopiedCnt;
+        Atomic CopiedCnt;
         size_t CopyTaskSize;
 
-        yvector<TEntryT> Data;
+        std::vector<TEntryT> Data;
 
         TOwner* Parent;
         TTableT *volatile Next;
         TTableT *volatile NextToDelete;
 
-        TSpinLock Lock;
+        SpinLock Lock;
 
     private:
         void PrepareToDelete();
@@ -300,7 +298,7 @@ namespace NLFHT {
     template <class Owner>
     typename TTable<Owner>::TEntryT*
     TTable<Owner>::LookUp(const TKey& key, size_t hash, TKey& foundKey) {
-        YASSERT(!KeyIsNone(key));
+        assert(!KeyIsNone(key));
         VERIFY(Size, "Size must be non-zero\n");
         OnLookUp();
 
@@ -342,24 +340,23 @@ namespace NLFHT {
         while (probeCnt < Size);
 
         AtomicBase oldCnt;
-        while (!IsFullFlag && probeCnt > (size_t)(oldCnt = MaxProbeCnt))
-            if (AtomicCas(&MaxProbeCnt, probeCnt, oldCnt)) {
-                size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
+        if (!IsFullFlag && probeCnt > MaxProbeCnt) {
+            size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
 
-                double tooBigDensity = Min(0.7, 2 * Parent->Density);
-                size_t tooManyKeys = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
+            double tooBigDensity = Min(0.7, 2 * Parent->Density);
+            size_t tooManyKeys = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
 #ifdef TRACE
-                Trace(Cerr, "MaxProbeCnt now %zd, keysCnt now %zd, tooManyKeys now %zd\n",
-                            probeCnt, keysCnt, tooManyKeys);
+            Trace(Cerr, "MaxProbeCnt now %zd, keysCnt now %zd, tooManyKeys now %zd\n",
+                  probeCnt, keysCnt, tooManyKeys);
 #endif
-                // keysCnt is approximate, that's why we must check that table is absolutely full
-                if (keysCnt >= tooManyKeys) {
+            // keysCnt is approximate, that's why we must check that table is absolutely full
+            if (keysCnt >= tooManyKeys) {
 #ifdef TRACE_MEM
-                    Trace(Cerr, "Claim that table is full\n");
+                Trace(Cerr, "Claim that table is full\n");
 #endif
-                    IsFullFlag = true;
-                }
+                IsFullFlag = true;
             }
+        }
         // cause TotalKeyCnt is approximate, sometimes table be absotely full, even 
         // when previous check fails
         if (!returnEntry && !IsFullFlag)
@@ -409,7 +406,7 @@ namespace NLFHT {
     
     template <class Owner>
     void TTable<Owner>::CreateNext() {
-        VERIFY(IsFull(), "CreateNext in table %zd when previous table is not full\n", (size_t)this);
+        VERIFY(IsFull(), "CreateNext in table when previous table is not full");
 
         Lock.Acquire();
         if (Next) {
@@ -421,7 +418,7 @@ namespace NLFHT {
         Cerr << Parent->GuardManager.ToString();
 #endif
 
-        const size_t aliveCnt = Max((TAtomicBase)1, Parent->GuardManager.TotalAliveCnt());
+        const size_t aliveCnt = Max(Max((AtomicBase)1, Parent->GuardManager.TotalAliveCnt()), (AtomicBase)Size);
         const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / Parent->Density)));
         ZeroKeyCnt();
 
@@ -707,8 +704,8 @@ namespace NLFHT {
     // JUST TO DEBUG
 
     template <class Owner>
-    void TTable<Owner>::Print(TOutputStream& ostr) {
-        TStringStream buf;
+    void TTable<Owner>::Print(std::ostream& ostr) {
+        std::stringstream buf;
 
         buf << "Table at " << (size_t)this << ":\n";
 
@@ -726,8 +723,8 @@ namespace NLFHT {
     }
    
     template <class Owner>
-    void TTable<Owner>::Trace(TOutputStream& ostr, const char* format, ...) {
-        Stroka buf1;
+    void TTable<Owner>::Trace(std::ostream& ostr, const char* format, ...) {
+        char buf1[10000];
         sprintf(buf1, "Thread %zd in table %zd: ", (size_t)&errno, (size_t)this);
 
         char buf2[10000];
