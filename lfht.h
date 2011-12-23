@@ -255,16 +255,10 @@ TLFHashTable<K, V, KC, HF, VC>::TLFHashTable(size_t initialSize, double density,
     assert(Density < 1.);
     Head = new TTable(this, initialSize);
     Guard = (NLFHT::TGuard*)0;
-#ifdef TRACE
-    Trace(Cerr, "TLFHashTable created\n");
-#endif
 }
 
 template <class K, class V, class KC, class HF, class VC>
 TLFHashTable<K, V, KC, HF, VC>::~TLFHashTable() {
-#ifdef TRACE_MEM
-    Cerr << GuardManager.ToString();
-#endif
     while (Head) {
         TTable* tmp = Head;
         Head = Head->Next;
@@ -281,18 +275,11 @@ template <class K, class V, class KC, class HF, class VC>
 typename TLFHashTable<K, V, KC, HF, VC>::TValue
 TLFHashTable<K, V, KC, HF, VC>::Get(const TKey& key, TSearchHint* hint) {
     assert(!KeysAreEqual(key, KeyNone()));
-#ifdef TRACE
-    Trace(Cerr, "TLFHashTable.Get(%s)\n", ~KeyToString(key));
-#endif
 
     StartGuarding();
     OnGet();
 
     TTable* startTable = Head;
-
-#ifdef TRACE
-    Trace(Cerr, "Get \"%s\"\n", ~KeyToString(key));
-#endif
 
     size_t hashValue = Hash(key);
     TValue returnValue = NotFound();
@@ -305,9 +292,6 @@ TLFHashTable<K, V, KC, HF, VC>::Get(const TKey& key, TSearchHint* hint) {
         returnValue = NotFound();
 
     StopGuarding();
-#ifdef TRACE
-    Trace(Cerr, "Get returns %s\n", ~ValueToString(returnValue));
-#endif
     return returnValue; 
 }
 
@@ -317,11 +301,6 @@ bool TLFHashTable<K, V, KC, HF, VC>::
 Put(const TKey& key, const TValue& value, TPutCondition cond, TSearchHint* hint) {
     assert(THTValueTraits::IsGood(value));
     assert(!KeysAreEqual(key, KeyNone()));
-#ifdef TRACE
-    Trace(Cerr, "TLFHashTable.Put key \"%s\" and value \"%s\" under condition %s..\n",
-            ~KeyToString(key), ~ValueToString(value),
-            ~cond.ToString());
-#endif
 
     StartGuarding();
     OnPut();
@@ -332,14 +311,13 @@ Put(const TKey& key, const TValue& value, TPutCondition cond, TSearchHint* hint)
     TTable* cur = Head;
     size_t cnt = 0;
     while (true) {
+#ifndef DEBUG
         if (++cnt >= 100000)
             VERIFY(false, "Too long table list\n");
+#endif
         if ((result = cur->Put(key, value, cond, keyInstalled)) != TTable::FULL_TABLE)
             break;
         if (!cur->GetNext()) {
-#ifdef TRACE
-            Trace(Cerr, "Create next table to put new key\n");
-#endif
             cur->CreateNext();
         }
         cur->DoCopyTask();
@@ -353,10 +331,6 @@ Put(const TKey& key, const TValue& value, TPutCondition cond, TSearchHint* hint)
 
     StopGuarding();
     TryToDelete();
-
-#ifdef TRACE
-    Trace(Cerr, "%s\n", result == TTable::SUCCEEDED ? "SUCCESS" : "FAIL");
-#endif
 
     return result == TTable::SUCCEEDED;
 }
@@ -395,15 +369,9 @@ void TLFHashTable<K, V, KC, HF, VC>::StartGuarding() {
 
     while (true) {
         AtomicBase CurrentTableNumber = TableNumber;
-#ifdef TRACE
-        Trace(Cerr, "Try to guard table %lld\n", CurrentTableNumber);
-#endif
         Guard->GuardTable(CurrentTableNumber);
         AtomicBarrier();
         if (TableNumber == CurrentTableNumber) {
-#ifdef TRACE
-            Trace(Cerr, "Started guarding\n");
-#endif
             // Atomic operation means memory barrier.
             // Now we are sure, that no thread can delete current Head.
             return;
@@ -418,16 +386,10 @@ void TLFHashTable<K, V, KC, HF, VC>::StopGuarding() {
         Guard = GuardManager.AcquireGuard((size_t)&Guard);
 
     Guard->StopGuarding();
-#ifdef TRACE
-    Trace(Cerr, "Stopped guarding\n");
-#endif
 }
 
 template <class K, class V, class KC, class HF, class VC>
 void TLFHashTable<K, V, KC, HF, VC>::TryToDelete() {
-#ifdef TRACE
-    Trace(Cerr, "TryToDelete\n");
-#endif
     TTable* toDel = ToDelete;
     if (!toDel) 
         return;
@@ -436,20 +398,14 @@ void TLFHashTable<K, V, KC, HF, VC>::TryToDelete() {
 
     // if the following is true, it means that no thread works
     // with the tables to ToDelete list
-#ifdef TRACE
-    Trace(Cerr, "TableToDeleteNumber %lld, firstGuardedTable %lld\n", TableToDeleteNumber, firstGuardedTable); 
-#endif
     if (TableToDeleteNumber < firstGuardedTable)
         if (AtomicCas(&ToDelete, (TTable*)0, toDel)) {
             if (Head == oldHead) {
                 while (toDel) {
                     TTable* nextToDel = toDel->NextToDelete;
-#ifdef TRACE_MEM
-                    Trace(Cerr, "Deleted table %zd of size %zd\n", (size_t)toDel, toDel->Size);
-#endif
                     delete toDel;
                     toDel = nextToDel;
-                }    
+                }
             }
             else {
                 // This is handling of possible ABA problem.
@@ -469,9 +425,6 @@ void TLFHashTable<K, V, KC, HF, VC>::TryToDelete() {
                     if (AtomicCas(&ToDelete, head, oldToDelete))
                         break;
                 }
-#ifdef TRACE_MEM
-                Trace(Cerr, "In fear of ABA problem put tables back to list\n");
-#endif
             }
         }
 }

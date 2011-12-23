@@ -494,6 +494,12 @@ void measure_mt_map(const std::string& mapString_)
 
 int main(int argc_,char **argv_)
 {
+    const size_t NN = N;
+    createInput(NN, 1);
+    std::cout << "map begin" << std::endl;
+    time_map_grow_predicted<lf_hash_map,0>(NN);
+    return 0;
+    
     print_system_info();
     nThreads = (argc_ == 1) ? 4 : ::atoi(argv_[1]);
 

@@ -124,8 +124,7 @@ namespace NLFHT {
         void PrepareToDelete();
         void DoCopyTask();
 
-        
-        static TKey NoneKey() {
+        inline static TKey NoneKey() {
             return TKeyTraits<TKey>::None();
         }
         void UnRefKey(const TKey& key, size_t cnt = 1) {
@@ -145,7 +144,7 @@ namespace NLFHT {
             return TValueTraits<TValue>::Baby();
         }
 
-        bool KeyIsNone(const TKey& key) {
+        inline bool KeyIsNone(const TKey& key) {
             return KeysAreEqual(key, NoneKey());
         }
         bool ValueIsNone(const TValue& value) {
@@ -302,31 +301,20 @@ namespace NLFHT {
         VERIFY(Size, "Size must be non-zero\n");
         OnLookUp();
 
-#ifdef TRACE
-        Trace(Cerr, "LookUp for key \"%s\"\n", ~KeyToString<K>(key));
-#endif
         size_t i = hash % Size;
         size_t probeCnt = 0;
 
-#ifdef TRACE
-        Trace(Cerr, "Start from entry %zd\n", i);
-#endif
         foundKey = NoneKey();
         TEntryT* returnEntry = 0;
         do {
             TKey entryKey(Data[i].Key);
 
             if (KeyIsNone(entryKey)) {
-#ifdef TRACE
-                Trace(Cerr, "Found empty entry %zd\n", i);
-#endif
                 returnEntry = &Data[i];
                 break;
             }
+
             if (KeysAreEqual(entryKey, key)) {
-#ifdef TRACE
-                Trace(Cerr, "Found key\n");
-#endif
                 foundKey = key;
                 returnEntry = &Data[i]; 
                 break;
@@ -345,15 +333,8 @@ namespace NLFHT {
 
             double tooBigDensity = Min(0.7, 2 * Parent->Density);
             size_t tooManyKeys = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
-#ifdef TRACE
-            Trace(Cerr, "MaxProbeCnt now %zd, keysCnt now %zd, tooManyKeys now %zd\n",
-                  probeCnt, keysCnt, tooManyKeys);
-#endif
             // keysCnt is approximate, that's why we must check that table is absolutely full
             if (keysCnt >= tooManyKeys) {
-#ifdef TRACE_MEM
-                Trace(Cerr, "Claim that table is full\n");
-#endif
                 IsFullFlag = true;
             }
         }
@@ -369,9 +350,6 @@ namespace NLFHT {
     // return false, if entry was copied
     template <class Owner>
     inline bool TTable<Owner>::GetEntry(TEntryT* entry, TValue& value) {
-#ifdef TRACE
-        Trace(Cerr, "GetEntry in %zd\n", entry - &Data[0]); 
-#endif
         if (IsCopying(TValue(entry->Value)))
             Copy(entry);
         ReadValueAndRef(value, entry->Value);
@@ -413,25 +391,14 @@ namespace NLFHT {
             Lock.Release();
             return;
         }
-#ifdef TRACE_MEM
-        Trace(Cerr, "CreateNext\n");
-        Cerr << Parent->GuardManager.ToString();
-#endif
 
         const size_t aliveCnt = Max(Max((AtomicBase)1, Parent->GuardManager.TotalAliveCnt()), (AtomicBase)Size);
         const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / Parent->Density)));
         ZeroKeyCnt();
 
         Next = new TTableT(Parent, nextSize);
-#ifdef TRACE
-        Trace(Cerr, "Table done\n");
-#endif
         CopyTaskSize = Max((size_t)1, 2 * (Size / (size_t)(Parent->Density * Next->Size + 1)));
         // Parent->GuardManager.ResetCounters();
-#ifdef TRACE_MEM
-        Trace(Cerr, "AliveCnt %zd\n", aliveCnt);
-        Trace(Cerr, "New table %zd of size %zd\n", Next, Next->Size);
-#endif
 
         Lock.Release();
     }
@@ -444,9 +411,6 @@ namespace NLFHT {
         // by now entry is locked for modifications (except becoming TOMBSTONE)
         // cause nobody does CAS on copying values
 
-#ifdef TRACE
-        Trace(Cerr, "Copy \"%s\"\n", ~KeyToString<TKey>(TKey(entry->Key)));
-#endif
         // remember the value to copy to the next table
         TValue entryValue(PureValue((TValue)entry->Value));
 
@@ -480,30 +444,26 @@ namespace NLFHT {
     template <class Owner>
     typename TTable<Owner>::EResult
     TTable<Owner>::PutEntry(TEntryT* entry, const TValue& value, const TPutCondition& cond, bool updateCnt) {
-#ifdef TRACE
-        Trace(Cerr, "PutEntry in entry %zd value %s under condition %s\n", entry - &Data[0], 
-                     ~ValueToString<TValue>(value), ~cond.ToString()); 
-#endif
-
         if (IsCopying((TValue)entry->Value)) {
             Copy(entry);
             return FULL_TABLE;
         }
 
-        bool shouldRefWhenRead = cond.When == TPutCondition::IF_MATCHES;
-        size_t successRefCnt = shouldRefWhenRead ? 2 : 1;
-        size_t otherRefCnt = successRefCnt - 1;
+        const bool shouldRefWhenRead = cond.When == TPutCondition::IF_MATCHES;
+        const size_t successRefCnt = shouldRefWhenRead ? 2 : 1;
+        const size_t otherRefCnt = successRefCnt - 1;
         
         bool shouldCompare = cond.When == TPutCondition::IF_MATCHES ||
                              cond.When == TPutCondition::IF_ABSENT;
 
         TValue oldValue;
-        if (shouldRefWhenRead) 
+        if (shouldRefWhenRead) {
             // we want to compare with oldValue
             // we need guaranty, that it's not deleted
             ReadValueAndRef(oldValue, entry->Value);
-        else
+        } else {
             oldValue = PureValue((TValue)entry->Value);
+        }
         if (ValueIsDeleted(oldValue) || ValueIsCopied(oldValue)) {
             UnRefValue(oldValue, otherRefCnt);
             return FULL_TABLE;
@@ -539,7 +499,7 @@ namespace NLFHT {
     typename TTable<Owner>::EResult
     TTable<Owner>::FetchEntry(const TKey& key, TEntryT* entry, 
                              bool thereWasKey, bool& keyIsInstalled, const TPutCondition& cond) {
-        if (!entry) 
+        if (!entry)
             return FULL_TABLE;
         if (IsFull()) {
             Copy(entry);
@@ -558,17 +518,11 @@ namespace NLFHT {
                 cond.When == TPutCondition::IF_MATCHES)
                 return FAILED;
             if (!KeysCompareAndSet(entry->Key, key, NoneKey())) {
-#ifdef TRACE
-                Trace(Cerr, "Lost race for instaling key\n");
-#endif
                 return RETRY;
             }
 
             keyIsInstalled = true;
             IncreaseKeyCnt();
-#ifdef TRACE
-            Trace(Cerr, "Key installed\n");
-#endif
             return CONTINUE;
         }
 
@@ -584,12 +538,6 @@ namespace NLFHT {
     TTable<Owner>::Put(const TKey& key, const TValue& value, const TPutCondition& cond, 
                       bool& keyInstalled, bool updateAliveCnt) {
         OnPut();
-#ifdef TRACE
-        Trace(Cerr, "Put key \"%s\" and value \"%s\" under condition %s..\n",
-                          ~KeyToString<TKey>(key), 
-                          ~ValueToString<TValue>(value), 
-                          ~cond.ToString());
-#endif
 
         const size_t hashValue = Parent->Hash(key);
         EResult result = RETRY;
@@ -606,11 +554,8 @@ namespace NLFHT {
         if (result != CONTINUE)
             return result;
 
-#ifdef TRACE
-        Trace(Cerr, "Got entry %d\n", entry - &Data[0]);
-#endif
-        for (size_t cnt = 0; (result = PutEntry(entry, value, cond, updateAliveCnt)) == RETRY; cnt++) {
-            if (cnt == 10) 
+        for (size_t cnt = 0; (result = PutEntry(entry, value, cond, updateAliveCnt)) == RETRY; ++cnt) {
+            if (cnt == 10)
                 VERIFY(false, "Put hang up");
         }
         return result;
@@ -640,9 +585,6 @@ namespace NLFHT {
         size_t start = finish - CopyTaskSize;
         if (start < Size) {
             finish = std::min(Size, finish);
-#ifdef TRACE
-            Trace(Cerr, "Copy from %d to %d\n", start, finish); 
-#endif
             for (size_t i = start; i < finish; i++)
                 Copy(&Data[i]);
         }
@@ -656,9 +598,6 @@ namespace NLFHT {
 
     template <class Owner>
     void TTable<Owner>::PrepareToDelete() {
-#ifdef TRACE
-        Trace(Cerr, "PrepareToDelete\n");
-#endif
         AtomicBase currentTableNumber = Parent->TableNumber;
         if (Parent->Head == this && AtomicCas(&Parent->Head, Next, this)) {
             // deleted table from main list
@@ -669,9 +608,6 @@ namespace NLFHT {
                 TTable* toDelete = Parent->ToDelete;
                 NextToDelete = toDelete;
                 if (AtomicCas(&Parent->ToDelete, this, toDelete)) {
-#ifdef TRACE_MEM
-                    Trace(Cerr, "Scheduled to delete table %zd\n", (size_t)this);
-#endif
                     break;
                 }
             }

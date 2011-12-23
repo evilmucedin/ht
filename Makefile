@@ -1,4 +1,4 @@
-CXXX = g++ -std=c++0x -march=native
+CXXX = g++ -std=c++0x
 
 all: debug
 
@@ -20,8 +20,19 @@ test: time_hash_map.o atomic_traits.o guards.o lfht.o
 debug: CXXX += -DDEBUG -g
 debug: test
 
-release: CXXX += -DNDEBUG -O3
+RELEASE_OPTS = -DNDEBUG -O3 -march=native 
+
+release: CXXX += $(RELEASE_OPTS)
 release: test
+
+release-profile: CXXX += $(RELEASE_OPTS) -fprofile-use
+release-profile: test
+
+valgrind: CXXX += -DNDEBUG -O2
+valgrind: test
+
+profile: CXXX += $(RELEASE_OPTS) -fprofile-generate
+profile: test
 
 clean:
 	rm -f time_hash_map.o lfht.o guards.o atomic_traits.o lfht.o test

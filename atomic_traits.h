@@ -171,7 +171,7 @@ namespace NLFHT {
 
     template <class T>
     class TKeyTraits<const T*> : public TKeyTraitsBase<const T*> {
-    public:    
+    public:
         typedef typename TKeyTraitsBase<const T*>::TKey TKey;
         typedef typename TKeyTraitsBase<const T*>::TAtomicKey TAtomicKey;
     };
@@ -277,7 +277,7 @@ namespace NLFHT {
 
         static void SetCopying(TAtomicValue& x) {
             AtomicOr((Atomic&)x, COPYING_FLAG);
-        } 
+        }
 
         static bool IsReserved(const TValue& x) {
             return x >= TReserved<TValue, 0>::Value();
@@ -339,11 +339,12 @@ namespace NLFHT {
         {
         }
 
-        size_t operator () (const Key& key) {
+        inline size_t operator()(const Key& key) {
             if (key == TKeyTraits<Key>::None())
                 return 0;
             return Hash(key);
-        }        
+        }
+
     private:
         HashFn Hash;
     };

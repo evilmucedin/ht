@@ -40,6 +40,7 @@ namespace NLFHT {
         GuardedTable = NO_TABLE;
         PTDLock = false;
         
+#ifndef NDEBUG
         // JUST TO DEBUG
         LocalPutCnt = 0;
         LocalCopyCnt = 0;
@@ -47,6 +48,7 @@ namespace NLFHT {
         LocalLookUpCnt = 0;
         GlobalPutCnt = 0;
         GlobalGetCnt = 0;
+#endif
     }
 
     void TGuard::Release() {
@@ -141,6 +143,7 @@ namespace NLFHT {
     }
 
     void TGuardManager::PrintStatistics(std::ostream& str) {
+#ifndef NDEBUG
         size_t LocalPutCnt = 0, LocalCopyCnt = 0, LocalDeleteCnt = 0, LocalLookUpCnt = 0;
         size_t GlobalPutCnt = 0, GlobalGetCnt = 0;
         for (TGuard* current = Head; current; current = current->Next) {
@@ -159,6 +162,7 @@ namespace NLFHT {
             << "LocalLookUpCnt " << LocalLookUpCnt << '\n'
             << "GlobalPutCnt " << GlobalPutCnt << '\n'
             << "GlobalGetCnt " << GlobalGetCnt << '\n';
+#endif
     }
 
     TGuard* TGuardManager::CreateGuard(AtomicBase owner) {

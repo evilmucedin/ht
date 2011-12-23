@@ -26,40 +26,55 @@ namespace NLFHT {
 
         void ForbidPrepareToDelete() {
             PTDLock = true;
-        }    
+        }
         void AllowPrepareToDelete() {
             PTDLock = false;
         }
 
         // JUST TO DEBUG 
         
-        void OnLocalPut() {
-            LocalPutCnt++;
+#ifndef NDEBUG
+        inline void OnLocalPut() {
+            ++LocalPutCnt;
         }
-        void OnLocalDelete() {
-            LocalDeleteCnt++;
+        inline void OnLocalDelete() {
+            LocalDeleteCnt;
         }
-        void OnLocalLookUp() {
-            LocalLookUpCnt++;
+        inline void OnLocalLookUp() {
+            ++LocalLookUpCnt;
         }
-        void OnLocalCopy() {
-            LocalCopyCnt++;
+        inline void OnLocalCopy() {
+            ++LocalCopyCnt;
         }
-        void OnGlobalGet() {
-            GlobalGetCnt++;
+        inline void OnGlobalGet() {
+            ++GlobalGetCnt;
         }
-        void OnGlobalPut() {
-            GlobalPutCnt++;
+        inline void OnGlobalPut() {
+            ++GlobalPutCnt;
         }
+#else
+        inline void OnLocalPut() {
+        }
+        inline void OnLocalDelete() {
+        }
+        inline void OnLocalLookUp() {
+        }
+        inline void OnLocalCopy() {
+        }
+        inline void OnGlobalGet() {
+        }
+        inline void OnGlobalPut() {
+        }
+#endif
 
-        void IncreaseAliveCnt() {
+        inline void IncreaseAliveCnt() {
             AtomicIncrement(AliveCnt);
         }
-        void DecreaseAliveCnt() {
+        inline void DecreaseAliveCnt() {
             AtomicDecrement(AliveCnt);
         }
-        void IncreaseKeyCnt() {
-            AtomicIncrement((Atomic&)KeyCnt);
+        inline void IncreaseKeyCnt() {
+            AtomicIncrement(KeyCnt);
         }
 
         // JUST TO DEBUG
@@ -83,9 +98,11 @@ namespace NLFHT {
         // tables are in the same cache line
         char Padding [CACHE_LINE_SIZE];
 
+#ifndef NDEBUG
         // JUST TO DEBUG
         Atomic LocalPutCnt, LocalCopyCnt, LocalDeleteCnt, LocalLookUpCnt;
         Atomic GlobalPutCnt, GlobalGetCnt;
+#endif
 
         Atomic AliveCnt;
         Atomic KeyCnt;
@@ -112,7 +129,7 @@ namespace NLFHT {
         friend class TGuard;
 
         TGuardManager();
-        ~TGuardManager();        
+        ~TGuardManager();
 
         TGuard* AcquireGuard(size_t owner);
 
