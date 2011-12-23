@@ -42,7 +42,8 @@ static inline void AtomicOr(Atomic& x, AtomicBase y) {
     __sync_or_and_fetch(&x, y);
 }
 
-static inline void AtomicAnd(Atomic& x, AtomicBase y) {
+static inline void AtomicAnd(Atomic& x, AtomicBase y)
+{
     __sync_and_and_fetch(&x, y);
 }
 
@@ -119,7 +120,7 @@ T Max(T x, T y)
 template<typename T>
 struct HashF
 {
-    size_t operator()(const T& value) const
+    inline size_t operator()(const T& value) const
     {
         return (size_t)value;
     }
@@ -128,7 +129,7 @@ struct HashF
 template<typename T>
 struct EqualToF
 {
-    bool operator()(const T& a, const T& b) const
+    inline bool operator()(const T& a, const T& b) const
     {
         return a == b;
     }
@@ -263,3 +264,10 @@ std::string ToString(const T& value)
 #else
     #error do not know how to make thread-local variables at this platform
 #endif
+
+class NonCopyable
+{
+private:
+    NonCopyable(const NonCopyable&);
+    NonCopyable& operator=(const NonCopyable& rhs);
+};

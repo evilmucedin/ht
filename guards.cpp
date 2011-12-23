@@ -1,10 +1,11 @@
 #include "guards.h"
+#include "lfht.h"
 
 #include <limits>
 
 namespace NLFHT {
-    const TAtomicBase TGuard::NO_OWNER = 0;
-    const TAtomicBase TGuard::NO_TABLE = Max<TAtomicBase>();
+    const AtomicBase TGuard::NO_OWNER = 0;
+    const AtomicBase TGuard::NO_TABLE = std::numeric_limits<AtomicBase>::max();
 
     void TThreadGuardTable::RegisterTable(TLFHashTableBase* pTable) {
        if (!GuardTable) 
@@ -91,15 +92,15 @@ namespace NLFHT {
         return result;
     }
 
-    TAtomicBase TGuardManager::TotalAliveCnt() {
-        TAtomicBase result = AliveCnt;
+    AtomicBase TGuardManager::TotalAliveCnt() {
+        AtomicBase result = AliveCnt;
         for (TGuard* current = Head; current; current = current->Next)
             result += current->AliveCnt;
         return result;
     }
 
-    TAtomicBase TGuardManager::TotalKeyCnt() {
-        TAtomicBase result = KeyCnt;
+    AtomicBase TGuardManager::TotalKeyCnt() {
+        AtomicBase result = KeyCnt;
         for (TGuard* current = Head; current; current = current->Next)
             result += current->KeyCnt;
         return result;
@@ -120,26 +121,26 @@ namespace NLFHT {
 
     // JUST TO DEBUG
 
-    Stroka TGuard::ToString() {
-        TStringStream tmp;
+    std::string TGuard::ToString() {
+        std::stringstream tmp;
         tmp << "TGuard " << '\n'
             << "Owner " << Owner << '\n'
             << "KeyCnt " << KeyCnt << '\n'
             << "AliveCnt " << AliveCnt << '\n'; 
-        return tmp.Str();
+        return tmp.str();
     }
 
-    Stroka TGuardManager::ToString() {
-        TStringStream tmp;
+    std::string TGuardManager::ToString() {
+        std::stringstream tmp;
         tmp << "GuardManager --------------\n";
         for (TGuard* current = Head; current; current = current->Next)
             tmp << current->ToString();
         tmp << "Common KeyCnt " << KeyCnt << '\n'
             << "Common AliveCnt " << AliveCnt << '\n';
-        return tmp.Str();
+        return tmp.str();
     }
 
-    void TGuardManager::PrintStatistics(TOutputStream& str) {
+    void TGuardManager::PrintStatistics(std::ostream& str) {
         size_t LocalPutCnt = 0, LocalCopyCnt = 0, LocalDeleteCnt = 0, LocalLookUpCnt = 0;
         size_t GlobalPutCnt = 0, GlobalGetCnt = 0;
         for (TGuard* current = Head; current; current = current->Next) {
@@ -160,7 +161,7 @@ namespace NLFHT {
             << "GlobalGetCnt " << GlobalGetCnt << '\n';
     }
 
-    TGuard* TGuardManager::CreateGuard(TAtomicBase owner) {
+    TGuard* TGuardManager::CreateGuard(AtomicBase owner) {
         TGuard* guard = new TGuard(this);
         guard->Owner = owner;
         while (true) {
