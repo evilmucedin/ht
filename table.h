@@ -147,48 +147,48 @@ namespace NLFHT {
         inline bool KeyIsNone(const TKey& key) {
             return KeysAreEqual(key, NoneKey());
         }
-        bool ValueIsNone(const TValue& value) {
+        inline bool ValueIsNone(const TValue& value) {
             return ValuesAreEqual(value, NoneValue());
         }
-        bool ValueIsDeleted(const TValue& value) {
+        inline bool ValueIsDeleted(const TValue& value) {
             return ValuesAreEqual(value, DeletedValue());
         }
-        bool ValueIsBaby(const TValue& value) {
+        inline bool ValueIsBaby(const TValue& value) {
             return ValuesAreEqual(value, BabyValue());
         }
-        bool ValueIsCopied(const TValue& value) {
+        inline bool ValueIsCopied(const TValue& value) {
             return ValuesAreEqual(value, CopiedValue());
         }
 
-        bool KeysAreEqual(const TKey& lft, const TKey& rgh) {
+        inline bool KeysAreEqual(const TKey& lft, const TKey& rgh) {
             return Parent->KeysAreEqual(lft, rgh);
         }
-        bool ValuesAreEqual(const TValue& lft, const TValue& rgh) {
+        inline bool ValuesAreEqual(const TValue& lft, const TValue& rgh) {
             return Parent->ValuesAreEqual(lft, rgh);
         }
 
-        static bool IsCopying(const TValue& value) {
+        inline static bool IsCopying(const TValue& value) {
             return TValueTraits<TValue>::IsCopying(value);
         }
-        static void SetCopying(TAtomicValue& value) {
+        inline static void SetCopying(TAtomicValue& value) {
             TValueTraits<TValue>::SetCopying(value);
         }
-        static TValue PureValue(const TValue& value) {
+        inline static TValue PureValue(const TValue& value) {
             return TValueTraits<TValue>::PureValue(value);
         }
 
-        bool KeysCompareAndSet(TAtomicKey& key, const TKey& newKey, const TKey& oldKey) {
+        inline bool KeysCompareAndSet(TAtomicKey& key, const TKey& newKey, const TKey& oldKey) {
             return Parent->KeyTraits.CompareAndSet(key, newKey, oldKey);
         }
-        bool ValuesCompareAndSet(TAtomicValue& value, const TValue& newValue, const TValue& oldValue) {
+        inline bool ValuesCompareAndSet(TAtomicValue& value, const TValue& newValue, const TValue& oldValue) {
             return Parent->ValueTraits.CompareAndSet(value, newValue, oldValue);
         }
 
-        void ReadValueAndRef(TValue& value, const TAtomicValue& atomicValue) {
+        inline void ReadValueAndRef(TValue& value, const TAtomicValue& atomicValue) {
             Parent->ValueTraits.ReadAndRef(value, atomicValue);
         }
-        void UnRefValue(const TValue& value, size_t cnt = 1) {
-            Parent->ValueTraits.UnRef(value, cnt);                
+        inline void UnRefValue(const TValue& value, size_t cnt = 1) {
+            Parent->ValueTraits.UnRef(value, cnt);
         }
 
         // guards wrappers
@@ -316,7 +316,7 @@ namespace NLFHT {
 
             if (KeysAreEqual(entryKey, key)) {
                 foundKey = key;
-                returnEntry = &Data[i]; 
+                returnEntry = &Data[i];
                 break;
             }
 
@@ -369,10 +369,12 @@ namespace NLFHT {
 
         bool result;
         bool keySet = !KeyIsNone(foundKey);
-        if (keySet) {
+        if (keySet)
+        {
             result = GetEntry(entry, value);
         }
-        else {
+        else
+        {
             // if table is full we should continue search
             value = NoneValue();
             result = !IsFull();
