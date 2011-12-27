@@ -20,7 +20,7 @@ test: time_hash_map.o atomic_traits.o guards.o lfht.o
 debug: CXXX += -DDEBUG -g
 debug: test
 
-RELEASE_OPTS = -DNDEBUG -O3 -march=native 
+RELEASE_OPTS = -DNDEBUG -O3 -march=native -s
 
 release: CXXX += $(RELEASE_OPTS)
 release: test

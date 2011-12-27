@@ -103,7 +103,11 @@ private:
     Atomic m_val;
 };
 
+#ifndef NDEBUG
 #define VERIFY(X, Y) assert((X) && (Y))
+#else
+#define VERIFY(X, Y)
+#endif
 
 template<typename T>
 T Min(T x, T y)
