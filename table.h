@@ -380,7 +380,7 @@ namespace NLFHT {
             // if table is full we should continue search
             value = NoneValue();
             result = !IsFull();
-            // VERIFY(!(!hint && result), "Table %zd nas podvela for key %zd\n", (size_t)this, (size_t)key);
+            // VERIFY(!(!hint && result), "Table %zd failed for key %zd\n", (size_t)this, (size_t)key);
         }
 
         return result;

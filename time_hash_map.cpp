@@ -264,16 +264,16 @@ template<class MapType> inline void insert_map(MapType& map_,size_t key_) {
 template<class MapType> inline bool find_map(MapType& map_,size_t key_) {
     return map_.find(key_) != map_.end();
 }
-template<class MapType> inline bool delete_map(MapType& map_,size_t key_) {
-    return map_.erase(key_);
+template<class MapType> inline void delete_map(MapType& map_,size_t key_) {
+    map_.erase(key_);
 }
-template<class MapType> inline bool size(const MapType& map_) {
+template<class MapType> inline size_t size(const MapType& map_) {
     return map_.size();
 }
 template<> inline void insert_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.PutIfAbsent(key_, key_ + 1);  }
 template<> inline bool find_map<lf_hash_map>(lf_hash_map& map_,size_t key_) {  return map_.Get(key_) != map_.NotFound(); }
-template<> inline bool delete_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.Delete(key_); }
-template<> inline bool size<lf_hash_map>(const lf_hash_map& map_) { return map_.Size(); }
+template<> inline void delete_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.Delete(key_); }
+template<> inline size_t size<lf_hash_map>(const lf_hash_map& map_) { return map_.Size(); }
 
 template<typename MapType>
 struct TRegistration {
