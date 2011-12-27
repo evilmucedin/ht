@@ -328,7 +328,7 @@ namespace NLFHT {
         while (probeCnt < Size);
 
         AtomicBase oldCnt;
-        while (!IsFullFlag && probeCnt > (size_t)(oldCnt = MaxProbeCnt))
+        while (!IsFullFlag && probeCnt > (size_t)(oldCnt = MaxProbeCnt)) {
             if (AtomicCas(&MaxProbeCnt, probeCnt, oldCnt)) {
                 const size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
 

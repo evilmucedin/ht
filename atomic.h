@@ -157,7 +157,7 @@ struct HashF<uint32_t>
 {
     inline size_t operator()(uint32_t value) const
     {
-        return (size_t)NumericHash(value);
+        return (size_t)IntHashImpl(value);
     }
 };
 
@@ -166,7 +166,7 @@ struct HashF<uint64_t>
 {
     inline size_t operator()(uint64_t value) const
     {
-        return (size_t)NumericHash(value);
+        return (size_t)IntHashImpl(value);
     }
 };
 
@@ -174,6 +174,15 @@ template<typename T>
 struct EqualToF
 {
     inline bool operator()(const T& a, const T& b) const
+    {
+        return a == b;
+    }
+};
+
+template<>
+struct EqualToF<size_t>
+{
+    inline bool operator()(size_t a, size_t b) const
     {
         return a == b;
     }
