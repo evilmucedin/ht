@@ -117,12 +117,56 @@ T Max(T x, T y)
     return (x > y) ? x : y;
 }
 
+static inline uint32_t IntHashImpl(uint32_t key) throw ()
+{
+    key += ~(key << 15);
+    key ^= (key >> 10);
+    key += (key << 3);
+    key ^= (key >> 6);
+    key += ~(key << 11);
+    key ^= (key >> 16);
+
+    return key;
+}
+
+static inline uint64_t IntHashImpl(uint64_t key) throw ()
+{
+    key += ~(key << 32);
+    key ^= (key >> 22);
+    key += ~(key << 13);
+    key ^= (key >> 8);
+    key += (key << 3);
+    key ^= (key >> 15);
+    key += ~(key << 27);
+    key ^= (key >> 31);
+
+    return key;
+}
+
 template<typename T>
 struct HashF
 {
     inline size_t operator()(const T& value) const
     {
         return (size_t)value;
+    }
+};
+
+template<>
+struct HashF<uint32_t>
+{
+    inline size_t operator()(uint32_t value) const
+    {
+        return (size_t)NumericHash(value);
+    }
+};
+
+template<>
+struct HashF<uint64_t>
+{
+    inline size_t operator()(uint64_t value) const
+    {
+        return (size_t)NumericHash(value);
     }
 };
 
