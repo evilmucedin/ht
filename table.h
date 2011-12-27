@@ -178,10 +178,10 @@ namespace NLFHT {
         }
 
         inline bool KeysCompareAndSet(TAtomicKey& key, const TKey& newKey, const TKey& oldKey) {
-            return Parent->KeyTraits.CompareAndSet(key, newKey, oldKey);
+            return TKeyTraits<TKey>::CompareAndSet(key, newKey, oldKey);
         }
         inline bool ValuesCompareAndSet(TAtomicValue& value, const TValue& newValue, const TValue& oldValue) {
-            return Parent->ValueTraits.CompareAndSet(value, newValue, oldValue);
+            return TValueTraits<TValue>::CompareAndSet(value, newValue, oldValue);
         }
 
         inline void ReadValueAndRef(TValue& value, const TAtomicValue& atomicValue) {
