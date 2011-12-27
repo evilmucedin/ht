@@ -252,6 +252,7 @@ TLFHashTable<K, V, KC, HF, VC>::TLFHashTable(size_t initialSize, double density,
     , ToDelete(0)
     , Density(density)
 {
+    assert(Density > 1e-9)
     assert(Density < 1.);
     Head = new TTable(this, initialSize/Density);
     Guard = (NLFHT::TGuard*)0;

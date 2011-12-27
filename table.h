@@ -59,7 +59,7 @@ namespace NLFHT {
     public:
         TTable(TOwner* parent, size_t size)
             : Size(size)
-            , MaxProbeCnt( Min(size_t(logf(size)) + 1, size - 1) )
+            , MaxProbeCnt(0)
             , IsFullFlag(false)
             , CopiedCnt(0)
             , CopyTaskSize(0)
@@ -328,14 +328,16 @@ namespace NLFHT {
         while (probeCnt < Size);
 
         AtomicBase oldCnt;
-        if (!IsFullFlag && probeCnt > MaxProbeCnt) {
-            size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
+        while (!IsFullFlag && probeCnt > (size_t)(oldCnt = MaxProbeCnt))
+            if (AtomicCas(&MaxProbeCnt, probeCnt, oldCnt)) {
+                const size_t keysCnt = Parent->GuardManager.TotalKeyCnt();
 
-            double tooBigDensity = Min(0.7, 2 * Parent->Density);
-            size_t tooManyKeys = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
-            // keysCnt is approximate, that's why we must check that table is absolutely full
-            if (keysCnt >= tooManyKeys) {
-                IsFullFlag = true;
+                const double tooBigDensity = Min(0.7, 2 * Parent->Density);
+                const size_t tooManyKeys = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
+                // keysCnt is approximate, that's why we must check that table is absolutely full
+                if (keysCnt >= tooManyKeys) {
+                    IsFullFlag = true;
+                }
             }
         }
         // cause TotalKeyCnt is approximate, sometimes table be absotely full, even 
