@@ -96,7 +96,7 @@ namespace NLFHT {
         volatile bool PTDLock;
         // to exclude probability, that data from different
         // tables are in the same cache line
-        char Padding [CACHE_LINE_SIZE];
+        char Padding[CACHE_LINE_SIZE];
 
 #ifndef NDEBUG
         // JUST TO DEBUG

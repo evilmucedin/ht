@@ -7,7 +7,7 @@
 namespace NLFHT {
     // const T* CAS
 
-    using ::AtomicCas;        
+    using ::AtomicCas;
 
     template <class T>
     static bool AtomicCas(const T* volatile* target, const T* exchange, const T* compare) {
