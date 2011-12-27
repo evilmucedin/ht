@@ -127,10 +127,6 @@ namespace NLFHT {
         inline static TKey NoneKey() {
             return TKeyTraits<TKey>::None();
         }
-        void UnRefKey(const TKey& key, size_t cnt = 1) {
-            Parent->KeyTraits.UnRef(key, cnt);
-        }
-
         static TValue CopiedValue() {
             return TValueTraits<TValue>::Copied();
         }
@@ -182,6 +178,10 @@ namespace NLFHT {
         }
         inline bool ValuesCompareAndSet(TAtomicValue& value, const TValue& newValue, const TValue& oldValue) {
             return TValueTraits<TValue>::CompareAndSet(value, newValue, oldValue);
+        }
+
+        inline void UnRefKey(const TKey& key, size_t cnt = 1) {
+            Parent->KeyTraits.UnRef(key, cnt);
         }
 
         inline void ReadValueAndRef(TValue& value, const TAtomicValue& atomicValue) {
@@ -396,7 +396,7 @@ namespace NLFHT {
             return;
         }
 
-        const size_t aliveCnt = Max(Max((AtomicBase)1, Parent->GuardManager.TotalAliveCnt()), (AtomicBase)Size);
+        const size_t aliveCnt = Max((TAtomicBase)1, Parent->GuardManager.TotalAliveCnt());
         const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / Parent->Density)));
         ZeroKeyCnt();
 
