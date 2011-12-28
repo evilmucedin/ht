@@ -156,9 +156,9 @@ cpu_info cpuInfo(void)
     typedef std::map<size_t,physical_cpu_info> cpu_map;
 
     cpu_map cpuMap;
-    size_t physicalId = 0;
-    size_t siblings = 0;
-    size_t cpuCores = 0;
+    int physicalId = 0;
+    int siblings = 0;
+    int cpuCores = 0;
     std::string modelName;
 
     while (std::getline(cpuFile,line) && done == false)
@@ -167,15 +167,15 @@ cpu_info cpuInfo(void)
         {
             if (line.find("physical id") == 0)
             {
-                ::sscanf(line.data(),"physical id : %lu",&physicalId);
+                ::sscanf(line.data(),"physical id : %d", &physicalId);
             }
             else if (line.find("siblings") == 0)
             {
-                ::sscanf(line.data(),"siblings : %lu",&siblings);
+                ::sscanf(line.data(),"siblings : %d", &siblings);
             }
             else if (line.find("cpu cores") == 0)
             {
-                ::sscanf(line.data(),"cpu cores : %lu",&cpuCores);
+                ::sscanf(line.data(),"cpu cores : %d", &cpuCores);
                 physical_cpu_info physicalCpuInfo = { physicalId, siblings, cpuCores };
                 cpuMap[physicalId] = physicalCpuInfo;
             }

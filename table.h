@@ -396,7 +396,7 @@ namespace NLFHT {
             return;
         }
 
-        const size_t aliveCnt = Max((TAtomicBase)1, Parent->GuardManager.TotalAliveCnt());
+        const size_t aliveCnt = Max((AtomicBase)1, Parent->GuardManager.TotalAliveCnt());
         const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / Parent->Density)));
         ZeroKeyCnt();
 
