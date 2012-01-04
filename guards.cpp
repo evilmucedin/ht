@@ -5,32 +5,37 @@
 
 namespace NLFHT {
     const AtomicBase TGuard::NO_OWNER = 0;
-    const AtomicBase TGuard::NO_TABLE = std::numeric_limits<AtomicBase>::max();
+    const AtomicBase TGuard::NO_TABLE = Max<TAtomicBase>();
 
-    void TThreadGuardTable::RegisterTable(TLFHashTableBase* pTable) {
-       if (!GuardTable) 
+    void TThreadGuardTable::RegisterTable(TGuardable* pTable) {
+        if (!GuardTable) {
            GuardTable = new TGuardTable;
-        (*GuardTable)[pTable] = pTable->AcquireGuard();
+        }
+        TGuard* guard = pTable->AcquireGuard();
+        assert(guard);
+        guard->ThreadId = GetCurrentThreadId();
+        (*GuardTable)[pTable] = guard;
     }
 
-    void TThreadGuardTable::ForgetTable(TLFHashTableBase* pTable) {
+    void TThreadGuardTable::ForgetTable(TGuardable* pTable) {
         TGuardTable::iterator it = GuardTable->find(pTable);
         it->second->Release();
         GuardTable->erase(it);
 
-        if (GuardTable->empty())
+        if (GuardTable->empty()) {
             delete (TGuardTable*)GuardTable;
-        GuardTable = (TGuardTable*)(0);
+            GuardTable = (TGuardTable*)(0);
+        }
     }
 
     NLFHT_THREAD_LOCAL TThreadGuardTable::TGuardTable *TThreadGuardTable::GuardTable = 0;
 
-    TGuard::TGuard(TGuardManager* parent) :
-        Next(0),
-        Parent(parent),
-        Owner(NO_OWNER)
+    TGuard::TGuard(TGuardManager* parent)
+        : Next(0)
+        , Parent(parent)
+        , Owner(NO_OWNER)
     {
-        Init();    
+        Init();
     }
 
     void TGuard::Init() {
@@ -39,7 +44,7 @@ namespace NLFHT {
 
         GuardedTable = NO_TABLE;
         PTDLock = false;
-        
+
 #ifndef NDEBUG
         // JUST TO DEBUG
         LocalPutCnt = 0;
@@ -58,10 +63,10 @@ namespace NLFHT {
         Init();
     }
 
-    TGuardManager::TGuardManager() :
-        Head(0),
-        AliveCnt(0),
-        KeyCnt(0)
+    TGuardManager::TGuardManager()
+        : Head(0)
+        , AliveCnt(0)
+        , KeyCnt(0)
     {
     }
 
@@ -71,8 +76,8 @@ namespace NLFHT {
         while (current) {
             TGuard* tmp = current;
             current = current->Next;
-            
-            VERIFY(tmp->Owner == TGuard::NO_OWNER, 
+
+            VERIFY(tmp->Owner == TGuard::NO_OWNER,
                    "Some thread haven't finish his work yet\n");
             delete tmp;
         }
@@ -128,7 +133,7 @@ namespace NLFHT {
         tmp << "TGuard " << '\n'
             << "Owner " << Owner << '\n'
             << "KeyCnt " << KeyCnt << '\n'
-            << "AliveCnt " << AliveCnt << '\n'; 
+            << "AliveCnt " << AliveCnt << '\n';
         return tmp.str();
     }
 
@@ -142,27 +147,28 @@ namespace NLFHT {
         return tmp.str();
     }
 
-    void TGuardManager::PrintStatistics(std::ostream& str) {
-#ifndef NDEBUG
-        size_t LocalPutCnt = 0, LocalCopyCnt = 0, LocalDeleteCnt = 0, LocalLookUpCnt = 0;
-        size_t GlobalPutCnt = 0, GlobalGetCnt = 0;
+    void TGuardManager::PrintStatistics(TOutputStream& str) {
+        size_t localPutCnt = 0;
+        size_t localCopyCnt = 0;
+        size_t localDeleteCnt = 0;
+        size_t localLookUpCnt = 0;
+        size_t globalPutCnt = 0;
+        size_t globalGetCnt = 0;
         for (TGuard* current = Head; current; current = current->Next) {
-            LocalPutCnt += current->LocalPutCnt;
-            LocalCopyCnt += current->LocalCopyCnt;
-            LocalDeleteCnt += current->LocalDeleteCnt;
-            LocalLookUpCnt += current->LocalLookUpCnt;
-            GlobalGetCnt += current->GlobalGetCnt;
-            GlobalPutCnt += current->GlobalPutCnt;
-            LocalPutCnt += current->LocalPutCnt;
+            localPutCnt += current->LocalPutCnt;
+            localCopyCnt += current->LocalCopyCnt;
+            localDeleteCnt += current->LocalDeleteCnt;
+            localLookUpCnt += current->LocalLookUpCnt;
+            globalGetCnt += current->GlobalGetCnt;
+            globalPutCnt += current->GlobalPutCnt;
         }
 
-        str << "LocalPutCnt " << LocalPutCnt << '\n'
-            << "LocalDeleteCnt " << LocalDeleteCnt << '\n'
-            << "LocalCopyCnt " << LocalCopyCnt << '\n'
-            << "LocalLookUpCnt " << LocalLookUpCnt << '\n'
-            << "GlobalPutCnt " << GlobalPutCnt << '\n'
-            << "GlobalGetCnt " << GlobalGetCnt << '\n';
-#endif
+        str << "LocalPutCnt " << localPutCnt << '\n'
+            << "LocalDeleteCnt " << localDeleteCnt << '\n'
+            << "LocalCopyCnt " << localCopyCnt << '\n'
+            << "LocalLookUpCnt " << localLookUpCnt << '\n'
+            << "GlobalPutCnt " << globalPutCnt << '\n'
+            << "GlobalGetCnt " << globalGetCnt << '\n';
     }
 
     TGuard* TGuardManager::CreateGuard(AtomicBase owner) {
