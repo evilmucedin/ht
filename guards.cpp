@@ -5,7 +5,7 @@
 
 namespace NLFHT {
     const AtomicBase TGuard::NO_OWNER = 0;
-    const AtomicBase TGuard::NO_TABLE = Max<AtomicBase>();
+    const AtomicBase TGuard::NO_TABLE = std::numeric_limits<AtomicBase>::max();
 
     void TThreadGuardTable::RegisterTable(TGuardable* pTable) {
         if (!GuardTable) {
@@ -148,6 +148,7 @@ namespace NLFHT {
     }
 
     void TGuardManager::PrintStatistics(std::ostream& str) {
+#ifndef NDEBUG
         size_t localPutCnt = 0;
         size_t localCopyCnt = 0;
         size_t localDeleteCnt = 0;
@@ -169,6 +170,7 @@ namespace NLFHT {
             << "LocalLookUpCnt " << localLookUpCnt << '\n'
             << "GlobalPutCnt " << globalPutCnt << '\n'
             << "GlobalGetCnt " << globalGetCnt << '\n';
+#endif
     }
 
     TGuard* TGuardManager::CreateGuard(AtomicBase owner) {
