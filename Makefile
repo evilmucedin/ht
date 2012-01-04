@@ -1,14 +1,18 @@
 HOSTNAME = $(shell hostname)
 ifeq ($(HOSTNAME), denplusplus-desktop)
-    PATH = /home/denplusplus/gcc46/bin/g++
+    GPATH = /home/denplusplus/gcc46/bin/g++
 else
     ifeq ($(HOSTNAME), denplusplus-osx-2.local)
-        PATH = /opt/local/bin/g++-mp-4.6
+        GPATH = /opt/local/bin/g++-mp-4.6
     else
-        PATH = /usr/bin/g++
+        ifeq ($(HOSTNAME), memcompute3)
+            GPATH = /usr/bin/g++-4.6
+        else
+            GPATH = /usr/bin/g++
+        endif
     endif
 endif
-CXXX = $(PATH) -std=c++0x
+CXXX = $(GPATH) -std=c++0x
 
 all: debug
 

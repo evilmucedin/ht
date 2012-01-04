@@ -5,7 +5,7 @@
 
 namespace NLFHT {
     const AtomicBase TGuard::NO_OWNER = 0;
-    const AtomicBase TGuard::NO_TABLE = Max<TAtomicBase>();
+    const AtomicBase TGuard::NO_TABLE = Max<AtomicBase>();
 
     void TThreadGuardTable::RegisterTable(TGuardable* pTable) {
         if (!GuardTable) {
@@ -13,7 +13,7 @@ namespace NLFHT {
         }
         TGuard* guard = pTable->AcquireGuard();
         assert(guard);
-        guard->ThreadId = GetCurrentThreadId();
+        guard->ThreadId = CurrentThreadId();
         (*GuardTable)[pTable] = guard;
     }
 
@@ -147,7 +147,7 @@ namespace NLFHT {
         return tmp.str();
     }
 
-    void TGuardManager::PrintStatistics(TOutputStream& str) {
+    void TGuardManager::PrintStatistics(std::ostream& str) {
         size_t localPutCnt = 0;
         size_t localCopyCnt = 0;
         size_t localDeleteCnt = 0;
