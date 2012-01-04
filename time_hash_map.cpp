@@ -270,9 +270,9 @@ template<class MapType, class Hint> inline void delete_map(MapType& map_,size_t 
 template<class MapType> inline size_t size(const MapType& map_) {
     return map_.size();
 }
-template<typename Hint> inline void insert_map<lf_hash_map>(lf_hash_map& map_,size_t key_, Hint* hint) { map_.PutIfAbsent(key_, key_ + 1, hint);  }
-template<typename Hint> inline bool find_map<lf_hash_map>(lf_hash_map& map_,size_t key_, Hint* hint) {  return map_.Get(key_, hint) != map_.NotFound(); }
-template<typename Hint> inline void delete_map<lf_hash_map>(lf_hash_map& map_,size_t key_, Hint* hint) { map_.Delete(key_, hint); }
+template<> inline void insert_map<lf_hash_map, lf_hash_map::TSearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::TSearchHint* hint) { map_.PutIfAbsent(key_, key_ + 1, hint);  }
+template<> inline bool find_map<lf_hash_map, lf_hash_map::TSearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::TSearchHint* hint) {  return map_.Get(key_, hint) != map_.NotFound(); }
+template<> inline void delete_map<lf_hash_map, lf_hash_map::TSearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::TSearchHint* hint) { map_.Delete(key_, hint); }
 template<> inline size_t size<lf_hash_map>(const lf_hash_map& map_) { return map_.Size(); }
 
 template<typename MapType>
@@ -441,7 +441,7 @@ void mtTestThreadEntryPoint(MapType& map_,pthread::barrier& barrier_,unsigned se
         keys.push_back(generator());
     }
 
-    if (!(Flags & insert_test)) find_map(map_,0);
+    if (!(Flags & insert_test)) find_map(map_,0, &hint);
     barrier_.wait();
 
     elapsed_timer timer;
