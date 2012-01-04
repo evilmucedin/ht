@@ -210,7 +210,9 @@ inline unsigned AtomicExchange8(volatile void *ptr, unsigned char x)
         return x;
 }
 
-#include <linux/futex.h>
+#if defined(__linux__)
+#   include <linux/futex.h>
+#endif
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -324,7 +326,33 @@ std::string ToString(const T& value)
 
 class NonCopyable
 {
+public:
+    NonCopyable() {}
 private:
     NonCopyable(const NonCopyable&);
     NonCopyable& operator=(const NonCopyable& rhs);
 };
+
+#define EXPECT_TRUE(Cond) __builtin_expect(!!(Cond), 1)
+#define EXPECT_FALSE(Cond) __builtin_expect(!!(Cond), 0)
+#define FORCED_INLINE inline __attribute__ ((always_inline))
+
+inline uint64_t RoundToNext2Power(uint64_t v) {
+    --v;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v |= v >> 32;
+    ++v;
+    return v;
+}
+
+inline size_t CurrentThreadId()
+{
+    return (size_t)pthread_self();
+}
+
+#define __STL_DEFAULT_ALLOCATOR(T) std::allocator<T>
+#define DEFAULT_ALLOCATOR(T) __STL_DEFAULT_ALLOCATOR(T)

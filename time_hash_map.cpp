@@ -27,6 +27,7 @@
 #include <sys/utsname.h>
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
 
 static const int DUMP = 1;
 
@@ -155,9 +156,9 @@ cpu_info cpuInfo(void)
     typedef std::map<size_t,physical_cpu_info> cpu_map;
 
     cpu_map cpuMap;
-    size_t physicalId = 0;
-    size_t siblings = 0;
-    size_t cpuCores = 0;
+    int physicalId = 0;
+    int siblings = 0;
+    int cpuCores = 0;
     std::string modelName;
 
     while (std::getline(cpuFile,line) && done == false)
@@ -166,15 +167,15 @@ cpu_info cpuInfo(void)
         {
             if (line.find("physical id") == 0)
             {
-                ::sscanf(line.data(),"physical id : %lu",&physicalId);
+                ::sscanf(line.data(),"physical id : %d", &physicalId);
             }
             else if (line.find("siblings") == 0)
             {
-                ::sscanf(line.data(),"siblings : %lu",&siblings);
+                ::sscanf(line.data(),"siblings : %d", &siblings);
             }
             else if (line.find("cpu cores") == 0)
             {
-                ::sscanf(line.data(),"cpu cores : %lu",&cpuCores);
+                ::sscanf(line.data(),"cpu cores : %d", &cpuCores);
                 physical_cpu_info physicalCpuInfo = { physicalId, siblings, cpuCores };
                 cpuMap[physicalId] = physicalCpuInfo;
             }
@@ -252,19 +253,44 @@ struct lf_hash_map_constants
 };
 
 typedef TLFHashTable<size_t, size_t> lf_hash_map;
-// typedef MutexHashTable<AtomicBase, AtomicBase> lf_hash_map;
+typedef std::unordered_map<size_t, size_t> unordered_map;
 
 
 // allow customization of basic hash_map ops - use std::map API
-template<class MapType> inline void insert_map(MapType& map_,size_t key_) { map_.PutIfAbsent(key_, key_ + 1);  }
-template<class MapType> inline bool find_map(MapType& map_,size_t key_) { Atomic dummy; return map_.Find(key_, dummy); }
-
-// lf_hash_map find API is a bit different, i.e. bool find(key,value) where the found value is placed into value
-template<> 
-inline bool find_map(lf_hash_map& map_,size_t key_) 
-{ 
-    return map_.Get(key_) != map_.NotFound();
+template<class MapType> inline void insert_map(MapType& map_,size_t key_) {
+    map_.insert( typename MapType::value_type(key_, key_ + 1) );
 }
+
+template<class MapType> inline bool find_map(MapType& map_,size_t key_) {
+    return map_.find(key_) != map_.end();
+}
+template<class MapType> inline void delete_map(MapType& map_,size_t key_) {
+    map_.erase(key_);
+}
+template<class MapType> inline size_t size(const MapType& map_) {
+    return map_.size();
+}
+template<> inline void insert_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.PutIfAbsent(key_, key_ + 1);  }
+template<> inline bool find_map<lf_hash_map>(lf_hash_map& map_,size_t key_) {  return map_.Get(key_) != map_.NotFound(); }
+template<> inline void delete_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.Delete(key_); }
+template<> inline size_t size<lf_hash_map>(const lf_hash_map& map_) { return map_.Size(); }
+
+template<typename MapType>
+struct TRegistration {
+
+    TRegistration(MapType&) {
+    }
+};
+
+template<>
+struct TRegistration<lf_hash_map> {
+    TLFHTRegistration m_registration;
+
+    TRegistration(lf_hash_map& map)
+        : m_registration(map)
+    {
+    }
+};
 
 static const size_t default_iters = 30000000/DUMP;
 
@@ -294,7 +320,7 @@ template<class MapType, int Flags>
 static void time_map_grow(size_t iters_) 
 {
     MapType map;
-    TLFHTRegistration registration(map);
+    TRegistration<MapType> registration(map);
 
     elapsed_timer timer;
 
@@ -305,14 +331,14 @@ static void time_map_grow(size_t iters_)
     }
 
     report("map_grow",timer.elapsedTime(),iters_);
-    std::cout << "size: " << map.Size() << std::endl;
+    std::cout << "size: " << size(map) << std::endl;
 }
 
 template<class MapType,int Flags>
 static void time_map_grow_predicted(size_t iters_) 
 {
     MapType map(iters_);
-    TLFHTRegistration registration(map);
+    TRegistration<MapType> registration(map);
     elapsed_timer timer;
 
 
@@ -328,7 +354,7 @@ template<class MapType,int Flags>
 static void time_map_find(size_t iters_) 
 {
     MapType map;
-    TLFHTRegistration registration(map);
+    TRegistration<MapType> registration(map);
     elapsed_timer timer;
     size_t r;
     size_t i;
@@ -353,7 +379,7 @@ template<class MapType,int Flags>
 static void time_map_erase(size_t iters_) 
 {
     MapType map;
-    TLFHTRegistration registration(map);
+    TRegistration<MapType> registration(map);
     elapsed_timer timer;
     size_t i;
 
@@ -362,16 +388,16 @@ static void time_map_erase(size_t iters_)
         insert_map(map,g_keys[i]);
     }
 
-    std::cout << "size before erase: " << map.Size() << std::endl;
+    std::cout << "size before erase: " << size(map) << std::endl;
 
     timer.reset();
     for (i = 0; i != iters_; ++i)
     {
-        map.Delete(g_keys[i]);
+        delete_map(map, g_keys[i]);
     }
 
     report("map_erase",timer.elapsedTime(),iters_);
-    std::cout << "size after erase: " << map.Size() << std::endl;
+    std::cout << "size after erase: " << size(map) << std::endl;
 }
 
 template<class MapType,int Flags>
@@ -529,6 +555,14 @@ int main(int argc_,char **argv_)
         std::cout << "SINGLE THREAD LOCK FREE TEST" << std::endl;
 
         measure_st_map<lf_hash_map,0>("lockfree::lf_hash_map",1,iters);
+    }
+
+    if (1)
+    {
+        std::cout << std::endl;
+        std::cout << "SINGLE THREAD LOCK FREE TEST" << std::endl;
+
+        measure_st_map<unordered_map,0>("std::unordered_map",1,iters);
     }
 
     return 0;

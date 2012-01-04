@@ -4,13 +4,19 @@
 #include "unordered_map"
 
 namespace NLFHT {
-    class TLFHashTableBase;
+    class TGuard;
+
+    class TGuardable {
+    public:
+        virtual TGuard* AcquireGuard() = 0;
+    };
 
     class TGuardManager;
 
-    class TGuard {
+    class TGuard : NonCopyable {
     public:
         friend class TGuardManager;
+        friend class TThreadGuardTable;
 
     public:
         TGuard(TGuardManager* parent);
@@ -21,7 +27,7 @@ namespace NLFHT {
             GuardedTable = tableNumber;
         }
         void StopGuarding() {
-            GuardedTable = NO_TABLE; 
+            GuardedTable = NO_TABLE;
         }
 
         void ForbidPrepareToDelete() {
@@ -31,14 +37,13 @@ namespace NLFHT {
             PTDLock = false;
         }
 
-        // JUST TO DEBUG 
-        
+        // JUST TO DEBUG
 #ifndef NDEBUG
         inline void OnLocalPut() {
             ++LocalPutCnt;
         }
         inline void OnLocalDelete() {
-            LocalDeleteCnt;
+            ++LocalDeleteCnt;
         }
         inline void OnLocalLookUp() {
             ++LocalLookUpCnt;
@@ -79,7 +84,11 @@ namespace NLFHT {
 
         // JUST TO DEBUG
         std::string ToString();
-        
+
+        size_t GetThreadId() const {
+            return ThreadId;
+        }
+
     private:
         void Init();
 
@@ -106,21 +115,23 @@ namespace NLFHT {
 
         Atomic AliveCnt;
         Atomic KeyCnt;
+
+        size_t ThreadId;
     };
 
     class TThreadGuardTable : NonCopyable {
     public:
-        static void RegisterTable(TLFHashTableBase* pTable);
-        static void ForgetTable(TLFHashTableBase* pTable);
+        static void RegisterTable(TGuardable* pTable);
+        static void ForgetTable(TGuardable* pTable);
 
-        static TGuard* ForTable(TLFHashTableBase *pTable) {
-            assert(GuardTable);
+        static TGuard* ForTable(TGuardable* pTable) {
+            VERIFY(GuardTable, "Register in table\n");
             return (*GuardTable)[pTable];
         }
     private:
         // yhash_map has too big constant
         // more specialized hash_map should be used here
-        typedef std::unordered_map<TLFHashTableBase*, TGuard*> TGuardTable;
+        typedef std::unordered_map<TGuardable*, TGuard*> TGuardTable;
         static NLFHT_THREAD_LOCAL TGuardTable* GuardTable;
     };
 
@@ -138,7 +149,7 @@ namespace NLFHT {
         // returns approximate value
         AtomicBase TotalAliveCnt();
 
-        // returns approximate value 
+        // returns approximate value
         AtomicBase TotalKeyCnt();
         void ZeroKeyCnt();
 

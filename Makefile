@@ -1,4 +1,14 @@
-CXXX = g++ -std=c++0x
+HOSTNAME = $(shell hostname)
+ifeq ($(HOSTNAME), denplusplus-desktop)
+    PATH = /home/denplusplus/gcc46/bin/g++
+else
+    ifeq ($(HOSTNAME), denplusplus-osx-2.local)
+        PATH = /opt/local/bin/g++-mp-4.6
+    else
+        PATH = /usr/bin/g++
+    endif
+endif
+CXXX = $(PATH) -std=c++0x
 
 all: debug
 
@@ -35,4 +45,4 @@ profile: CXXX += $(RELEASE_OPTS) -fprofile-generate
 profile: test
 
 clean:
-	rm -f time_hash_map.o lfht.o guards.o atomic_traits.o lfht.o test
+	/bin/rm -f time_hash_map.o lfht.o guards.o atomic_traits.o lfht.o test

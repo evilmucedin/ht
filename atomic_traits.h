@@ -16,7 +16,7 @@ namespace NLFHT {
 
     // traits classes declarations
 
-    template <class T> 
+    template <class T>
     class TAtomicTraits;
 
     template <class T>
@@ -35,75 +35,75 @@ namespace NLFHT {
 
     template <class T>
     struct TReserved<T*, 0> {
-        static T* Value() {
+        inline static T* Value() {
             return (T*)0;
         }
     };
     template <class T>
     struct TReserved<T*, 1> {
-        static T* Value() {
+        inline static T* Value() {
             return (T*)1;
         }
     };
     template <class T>
     struct TReserved<T*, 2> {
-        static T* Value() {
+        inline static T* Value() {
             return (T*)2;
         }
     };
     template <class T>
     struct TReserved<T*, 3> {
-        static T* Value() {
+        inline static T* Value() {
             return (T*)3;
         }
     };
 
     template <class T>
     struct TReserved<const T*, 0> {
-        static const T* Value() {
+        inline static const T* Value() {
             return (const T*)0;
         }
     };
     template <class T>
     struct TReserved<const T*, 1> {
-        static const T* Value() {
+        inline static const T* Value() {
             return (const T*)1;
         }
     };
     template <class T>
     struct TReserved<const T*, 2> {
-        static const T* Value() {
+        inline static const T* Value() {
             return (const T*)2;
         }
     };
     template <class T>
     struct TReserved<const T*, 3> {
-        static const T* Value() {
+        inline static const T* Value() {
             return (const T*)3;
         }
     };
 
     template <>
     struct TReserved<size_t, 0> {
-        static size_t Value() {
+        inline static size_t Value() {
             return 0x7FFFFFFFFFFFFFFCull;
         }
     };
     template <>
     struct TReserved<size_t, 1> {
-        static size_t Value() {
+        inline static size_t Value() {
             return 0x7FFFFFFFFFFFFFFDull;
         }
     };
     template <>
     struct TReserved<size_t, 2> {
-        static size_t Value() {
+        inline static size_t Value() {
             return 0x7FFFFFFFFFFFFFFEull;
         }
     };
     template <>
     struct TReserved<size_t, 3> {
-        static size_t Value() {
+        inline static size_t Value() {
             return 0x7FFFFFFFFFFFFFFFull;
         }
     };
@@ -115,11 +115,6 @@ namespace NLFHT {
     public:
         typedef T TType;
         typedef volatile T TAtomicType;
-
-        void Ref(const TType&) {
-        }
-        void UnRef(const TType&, size_t) {
-        }
     };
 
     template <class T>
@@ -158,14 +153,12 @@ namespace NLFHT {
         typedef typename TAtomicTraits<T>::TType TKey;
         typedef typename TAtomicTraits<T>::TAtomicType TAtomicKey;
 
-        static T None() {
+        inline static T None() {
             return TReserved<T, 0>::Value();
         }
-        static T Tombstone() {
-            return TReserved<T, 1>::Value();
-        }
 
-        void UnRef(const TKey&, size_t) {
+        inline static bool IsReserved(const TKey& k) {
+            return k == None();
         }
     };
 
@@ -194,23 +187,23 @@ namespace NLFHT {
         typedef typename TAtomicTraits<T>::TType TValue;
         typedef typename TAtomicTraits<T>::TAtomicType TAtomicValue;
 
-        static T None() {
+        inline static T None() {
             return TReserved<T, 0>::Value();
         }
-        static T Baby() {
+        inline static T Baby() {
             return TReserved<T, 1>::Value();
         }
-        static T Copied() {
+        inline static T Copied() {
             return TReserved<T, 2>::Value();
         }
-        static T Deleted() {
+        inline static T Deleted() {
             return TReserved<T, 3>::Value();
         }
 
     };
 
     // depends on canonical address form of 64-bit pointers
-    // see http://support.amd.com/us/Embedded_TechDocs/24593.pdf 
+    // see http://support.amd.com/us/Embedded_TechDocs/24593.pdf
     // bit 62 not equal to bit 63 means state is COPYING
     template <class T>
     class TValueTraits<const T*> : public TValueTraitsBase<const T*> {
@@ -233,7 +226,7 @@ namespace NLFHT {
             size_t& x = (size_t&)p;
             size_t b62 = (x >> 62) & 1;
             size_t b63 = (x >> 63) & 1;
-            if (b63 != b62) 
+            if (b63 != b62)
                 return true;
             return false;
         }
@@ -251,13 +244,8 @@ namespace NLFHT {
         static bool IsReserved(const TValue& p) {
             return (size_t)p <= (size_t)TReserved<TValue, 3>::Value();
         }
-
-        static void ReadAndRef(TValue& value, const TAtomicValue& atomicValue) {
-            value = PureValue((TValue)atomicValue);
-        }
-
         static bool IsGood(const TValue& p) {
-            return (p & SIGNIFICANT_BITS) == p;
+            return ((size_t)p & SIGNIFICANT_BITS) == (size_t)p;
         }
     };
 
@@ -282,11 +270,6 @@ namespace NLFHT {
         static bool IsReserved(const TValue& x) {
             return x >= TReserved<TValue, 0>::Value();
         }
-
-        static void ReadAndRef(TValue& value, const TAtomicValue& atomicValue) {
-            value = PureValue((TValue)atomicValue);
-        }
-
         static bool IsGood(const TValue& p) {
             return (p & SIGNIFICANT_BITS) == p;
         }
@@ -301,11 +284,12 @@ namespace NLFHT {
         }
 
         inline bool operator() (const Key& lft, const Key& rgh) {
-            if (lft == TKeyTraits<Key>::None() || rgh == TKeyTraits<Key>::None())
-                return lft == rgh;
             return AreEqual(lft, rgh);
         }
 
+        KeyCmp GetImpl() {
+            return AreEqual;
+        }
     private:
         KeyCmp AreEqual;
     };
@@ -319,14 +303,19 @@ namespace NLFHT {
         }
 
         inline bool operator()(const Val& lft, const Val& rgh) {
-            if (TValueTraits<Val>::IsCopying(lft) != TValueTraits<Val>::IsCopying(rgh))
+            if (EXPECT_FALSE(TValueTraits<Val>::IsCopying(lft) != TValueTraits<Val>::IsCopying(rgh)))
                 return false;
-            Val lftPure = TValueTraits<Val>::PureValue(lft);
-            Val rghPure = TValueTraits<Val>::PureValue(rgh);
-            if (TValueTraits<Val>::IsReserved(lftPure) || TValueTraits<Val>::IsReserved(rghPure))
+            const Val lftPure = TValueTraits<Val>::PureValue(lft);
+            const Val rghPure = TValueTraits<Val>::PureValue(rgh);
+            if (EXPECT_FALSE(TValueTraits<Val>::IsReserved(lftPure) || TValueTraits<Val>::IsReserved(rghPure)))
                 return lft == rgh;
             return AreEqual(lft, rgh);
         }
+
+        ValCmp GetImpl() {
+            return AreEqual;
+        }
+
     private:
         ValCmp AreEqual;
     };
@@ -334,14 +323,12 @@ namespace NLFHT {
     template <class Key, class HashFn>
     class THashFunc {
     public:
-        THashFunc(const HashFn& hash) :
-            Hash(hash)
+        THashFunc(const HashFn& hash)
+            : Hash(hash)
         {
         }
 
         inline size_t operator()(const Key& key) {
-            if (key == TKeyTraits<Key>::None())
-                return 0;
             return Hash(key);
         }
 
@@ -358,14 +345,14 @@ namespace NLFHT {
 
     template <class T>
     std::string ValueToString(const typename TValueTraits<T>::TValue& arg) {
-        typename TValueTraits<T>::TValue argPure = TValueTraits<T>::PureValue(arg); 
+        typename TValueTraits<T>::TValue argPure = TValueTraits<T>::PureValue(arg);
 
         std::stringstream tmp;
         if (argPure == TValueTraits<T>::None())
             tmp << "NONE";
         else if (argPure == TValueTraits<T>::Copied())
             tmp << "COPIED";
-        else if (argPure, TValueTraits<T>::Baby())
+        else if (argPure == TValueTraits<T>::Baby())
             tmp << "BABY";
         else if (argPure == TValueTraits<T>::Deleted())
             tmp << "DELETED";
