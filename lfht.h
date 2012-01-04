@@ -158,8 +158,8 @@ public:
                  const KeyCmp& keysAreEqual = KeyCmp(),
                  const HashFn& hash = HashFn(),
                  const ValCmp& valuesAreEqual = ValCmp(),
-                 std::auto_ptr<KeyMgr>& keyMgr = std::auto_ptr<KeyMgr>(),
-                 std::auto_ptr<ValMgr>& valMgr = std::auto_ptr<ValMgr>());
+                 std::auto_ptr<KeyMgr> keyMgr = std::auto_ptr<KeyMgr>(),
+                 std::auto_ptr<ValMgr> valMgr = std::auto_ptr<ValMgr>());
     ~TLFHashTable();
 
     // return NotFound value if there is no such key
@@ -292,8 +292,8 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
                                  const TKeyComparator& keysAreEqual,
                                  const THashFn& hash,
                                  const TValueComparator& valuesAreEqual,
-                                 std::auto_ptr<TKeyManager>& keyManager,
-                                 std::auto_ptr<TValueManager>& valueManager)
+                                 std::auto_ptr<TKeyManager> keyManager,
+                                 std::auto_ptr<TValueManager> valueManager)
     : Hash(hash)
     , KeysAreEqual(keysAreEqual)
     , ValuesAreEqual(valuesAreEqual)
