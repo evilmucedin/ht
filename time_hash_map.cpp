@@ -257,26 +257,27 @@ typedef std::unordered_map<size_t, size_t> unordered_map;
 
 
 // allow customization of basic hash_map ops - use std::map API
-template<class MapType> inline void insert_map(MapType& map_,size_t key_) {
+template<class MapType, class Hint> inline void insert_map(MapType& map_,size_t key_, Hint*) {
     map_.insert( typename MapType::value_type(key_, key_ + 1) );
 }
 
-template<class MapType> inline bool find_map(MapType& map_,size_t key_) {
+template<class MapType, class Hint> inline bool find_map(MapType& map_,size_t key_, Hint*) {
     return map_.find(key_) != map_.end();
 }
-template<class MapType> inline void delete_map(MapType& map_,size_t key_) {
+template<class MapType, class Hint> inline void delete_map(MapType& map_,size_t key_, Hint*) {
     map_.erase(key_);
 }
 template<class MapType> inline size_t size(const MapType& map_) {
     return map_.size();
 }
-template<> inline void insert_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.PutIfAbsent(key_, key_ + 1);  }
-template<> inline bool find_map<lf_hash_map>(lf_hash_map& map_,size_t key_) {  return map_.Get(key_) != map_.NotFound(); }
-template<> inline void delete_map<lf_hash_map>(lf_hash_map& map_,size_t key_) { map_.Delete(key_); }
+template<typename Hint> inline void insert_map<lf_hash_map>(lf_hash_map& map_,size_t key_, Hint* hint) { map_.PutIfAbsent(key_, key_ + 1, hint);  }
+template<typename Hint> inline bool find_map<lf_hash_map>(lf_hash_map& map_,size_t key_, Hint* hint) {  return map_.Get(key_, hint) != map_.NotFound(); }
+template<typename Hint> inline void delete_map<lf_hash_map>(lf_hash_map& map_,size_t key_, Hint* hint) { map_.Delete(key_, hint); }
 template<> inline size_t size<lf_hash_map>(const lf_hash_map& map_) { return map_.Size(); }
 
 template<typename MapType>
 struct TRegistration {
+    typedef int Hint;
 
     TRegistration(MapType&) {
     }
@@ -285,6 +286,7 @@ struct TRegistration {
 template<>
 struct TRegistration<lf_hash_map> {
     TLFHTRegistration m_registration;
+    typedef lf_hash_map::TSearchHint Hint;
 
     TRegistration(lf_hash_map& map)
         : m_registration(map)
@@ -294,7 +296,7 @@ struct TRegistration<lf_hash_map> {
 
 static const size_t default_iters = 30000000/DUMP;
 
-static void print_system_info(void) 
+static void print_system_info(void)
 {
     cpuid::cpu_info cpuInfo = cpuid::cpuInfo();
     struct utsname u;
@@ -310,24 +312,25 @@ static void print_system_info(void)
               << std::endl;
 }
 
-static void report(char const* title_,double elapsedTime_,size_t iters_) 
+static void report(char const* title_,double elapsedTime_,size_t iters_)
 {
     //double t = (t_ * 1000 * 1000 * 1000) / iters_;
     std::cout << title_ << " " << elapsedTime_ << " secs" << std::endl;
 }
 
 template<class MapType, int Flags>
-static void time_map_grow(size_t iters_) 
+static void time_map_grow(size_t iters_)
 {
     MapType map;
     TRegistration<MapType> registration(map);
+    typename TRegistration<MapType>::Hint hint;
 
     elapsed_timer timer;
 
     timer.reset();
     for (size_t i = 0; i != iters_; ++i)
     {
-        insert_map(map,g_keys[i]);
+        insert_map(map,g_keys[i], &hint);
     }
 
     report("map_grow",timer.elapsedTime(),iters_);
@@ -335,57 +338,60 @@ static void time_map_grow(size_t iters_)
 }
 
 template<class MapType,int Flags>
-static void time_map_grow_predicted(size_t iters_) 
+static void time_map_grow_predicted(size_t iters_)
 {
     MapType map(iters_);
     TRegistration<MapType> registration(map);
+    typename TRegistration<MapType>::Hint hint;
     elapsed_timer timer;
 
 
     timer.reset();
     for (size_t i = 0; i != iters_; ++i)
     {
-        insert_map(map,g_keys[i]);
+        insert_map(map,g_keys[i], &hint);
     }
     report("map_predict_grow",timer.elapsedTime(),iters_);
 }
 
 template<class MapType,int Flags>
-static void time_map_find(size_t iters_) 
+static void time_map_find(size_t iters_)
 {
     MapType map;
     TRegistration<MapType> registration(map);
+    typename TRegistration<MapType>::Hint hint;
     elapsed_timer timer;
     size_t r;
     size_t i;
 
     for (i = 0; i != iters_; ++i)
     {
-        insert_map(map,g_keys[i]);
+        insert_map(map,g_keys[i], &hint);
     }
 
     r = 1;
-    find_map(map,g_keys[0]);
+    find_map(map,g_keys[0], &hint);
     timer.reset();
     for (i = 0; i != iters_; ++i)
     {
-        r ^= find_map(map,g_keys[i]);
+        r ^= find_map(map,g_keys[i], &hint);
     }
     report("map_find",timer.elapsedTime(),iters_);
     std::cout << "r value: " << r << std::endl;
 }
 
 template<class MapType,int Flags>
-static void time_map_erase(size_t iters_) 
+static void time_map_erase(size_t iters_)
 {
     MapType map;
     TRegistration<MapType> registration(map);
+    typename TRegistration<MapType>::Hint hint;
     elapsed_timer timer;
     size_t i;
 
     for (i = 0; i != iters_; ++i)
     {
-        insert_map(map,g_keys[i]);
+        insert_map(map,g_keys[i],&hint);
     }
 
     std::cout << "size before erase: " << size(map) << std::endl;
@@ -393,7 +399,7 @@ static void time_map_erase(size_t iters_)
     timer.reset();
     for (i = 0; i != iters_; ++i)
     {
-        delete_map(map, g_keys[i]);
+        delete_map(map, g_keys[i],&hint);
     }
 
     report("map_erase",timer.elapsedTime(),iters_);
@@ -401,7 +407,7 @@ static void time_map_erase(size_t iters_)
 }
 
 template<class MapType,int Flags>
-static void measure_st_map(const std::string& mapString_,size_t nLoops_,size_t iters_) 
+static void measure_st_map(const std::string& mapString_,size_t nLoops_,size_t iters_)
 {
     for (size_t i = 0; i != nLoops_; ++i)
     {
@@ -422,7 +428,8 @@ const size_t N = 25000000/DUMP;
 template<class MapType,uint32_t Flags>
 void mtTestThreadEntryPoint(MapType& map_,pthread::barrier& barrier_,unsigned seed_,double& elapsedTime_)
 {
-    TLFHTRegistration registration(map_);
+    TRegistration<MapType> registration(map_);
+    typename TRegistration<MapType>::Hint hint;
     std::vector<size_t> keys;
 
     boost::mt19937 gen(seed_);
@@ -448,11 +455,11 @@ void mtTestThreadEntryPoint(MapType& map_,pthread::barrier& barrier_,unsigned se
             size_t k = keys[i];
             if (Flags & insert_test)
             {
-                insert_map(map_,k);
+                insert_map(map_,k,&hint);
             }
             else
             {
-                count += find_map(map_,k);
+                count += find_map(map_,k,&hint);
             }
         }
     }
