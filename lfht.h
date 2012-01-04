@@ -158,8 +158,8 @@ public:
                  const KeyCmp& keysAreEqual = KeyCmp(),
                  const HashFn& hash = HashFn(),
                  const ValCmp& valuesAreEqual = ValCmp(),
-                 const std::auto_ptr<KeyMgr>& keyMgr = std::auto_ptr<KeyMgr>(),
-                 const std::auto_ptr<ValMgr>& valMgr = std::auto_ptr<ValMgr>());
+                 std::auto_ptr<KeyMgr>& keyMgr = std::auto_ptr<KeyMgr>(),
+                 std::auto_ptr<ValMgr>& valMgr = std::auto_ptr<ValMgr>());
     ~TLFHashTable();
 
     // return NotFound value if there is no such key
@@ -292,8 +292,8 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
                                  const TKeyComparator& keysAreEqual,
                                  const THashFn& hash,
                                  const TValueComparator& valuesAreEqual,
-                                 const std::auto_ptr<TKeyManager>& keyManager,
-                                 const std::auto_ptr<TValueManager>& valueManager)
+                                 std::auto_ptr<TKeyManager>& keyManager,
+                                 std::auto_ptr<TValueManager>& valueManager)
     : Hash(hash)
     , KeysAreEqual(keysAreEqual)
     , ValuesAreEqual(valuesAreEqual)
@@ -305,12 +305,12 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
     assert(Density > 1e-9);
     assert(Density < 1.);
 
-    KeyManager = keyManager.Release();
+    KeyManager = keyManager.release();
     if (!KeyManager)
-        KeyManager = new TKeyManager;
-    ValueManager = valueManager.Release();
+        KeyManager = new TKeyManager();
+    ValueManager = valueManager.release();
     if (!ValueManager)
-        ValueManager = new TValueManager;
+        ValueManager = new TValueManager();
 
     Head = new TTable(this, initialSize/Density);
 }
@@ -449,7 +449,7 @@ inline void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::StartGuarding(TSearchHint
     }
     VERIFY(Guard, "Register in table!\n");
     assert(Guard == NLFHT::TThreadGuardTable::ForTable(this));
-    assert(Guard->GetThreadId() == TThread::CurrentThreadId());
+    assert(Guard->GetThreadId() == CurrentThreadId());
 
     while (true) {
         AtomicBase currentTableNumber = TableNumber;
