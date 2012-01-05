@@ -84,27 +84,52 @@ namespace NLFHT {
     };
 
     template <>
-    struct TReserved<size_t, 0> {
-        inline static size_t Value() {
+    struct TReserved<uint64_t, 0> {
+        inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFCull;
         }
     };
     template <>
-    struct TReserved<size_t, 1> {
-        inline static size_t Value() {
+    struct TReserved<uint64_t, 1> {
+        inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFDull;
         }
     };
     template <>
-    struct TReserved<size_t, 2> {
-        inline static size_t Value() {
+    struct TReserved<uint64_t, 2> {
+        inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFEull;
         }
     };
     template <>
-    struct TReserved<size_t, 3> {
-        inline static size_t Value() {
+    struct TReserved<uint64_t, 3> {
+        inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFFull;
+        }
+    };
+
+    template <>
+    struct TReserved<uint32_t, 0> {
+        inline static uint32_t Value() {
+            return 0x7FFFFFFCull;
+        }
+    };
+    template <>
+    struct TReserved<uint32_t, 1> {
+        inline static uint32_t Value() {
+            return 0x7FFFFFFDull;
+        }
+    };
+    template <>
+    struct TReserved<uint32_t, 2> {
+        inline static uint32_t Value() {
+            return 0x7FFFFFFEull;
+        }
+    };
+    template <>
+    struct TReserved<uint32_t, 3> {
+        inline static uint32_t Value() {
+            return 0x7FFFFFFFull;
         }
     };
 
@@ -251,8 +276,9 @@ namespace NLFHT {
 
     template <>
     class TValueTraits<size_t> : public TValueTraitsBase<size_t> {
-        static const size_t SIGNIFICANT_BITS = 0x7FFFFFFFFFFFFFFFULL;
-        static const size_t COPYING_FLAG = ~SIGNIFICANT_BITS;
+        static const size_t NBITS_SIZE_T = sizeof(size_t)*8;
+        static const size_t COPYING_FLAG = ((size_t)1) << (NBITS_SIZE_T - 1);
+        static const size_t SIGNIFICANT_BITS = (size_t(-1)) & ~COPYING_FLAG;
 
     public:
         static TValue PureValue(const TValue& x) {
