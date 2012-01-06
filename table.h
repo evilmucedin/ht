@@ -73,6 +73,10 @@ namespace NLFHT {
             Data.resize(Size);
             const double tooBigDensity = Min(0.7, 2 * Parent->Density);
             UpperKeyCountBound = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
+
+#ifndef NDEBUG
+            ++Parent->TablesCreated;
+#endif
         }
 
         ~TTable() {
@@ -81,6 +85,10 @@ namespace NLFHT {
                     UnRefKey((TKey)Data[i].Key);
                 UnRefValue(PureValue((TValue)Data[i].Value));
             }
+
+#ifndef NDEBUG
+            ++Parent->TablesDeleted;
+#endif
         }
 
         inline bool IsFull() const {
@@ -150,26 +158,26 @@ namespace NLFHT {
             return TValueTraits<TValue>::Baby();
         }
 
-        inline bool ValueIsNone(const TValue& value) {
+        FORCED_INLINE bool ValueIsNone(const TValue& value) {
             return ValuesAreEqual(value, NoneValue());
         }
-        inline bool ValueIsDeleted(const TValue& value) {
+        FORCED_INLINE bool ValueIsDeleted(const TValue& value) {
             return ValuesAreEqual(value, DeletedValue());
         }
-        inline bool ValueIsBaby(const TValue& value) {
+        FORCED_INLINE bool ValueIsBaby(const TValue& value) {
             return ValuesAreEqual(value, BabyValue());
         }
-        inline bool ValueIsCopied(const TValue& value) {
+        FORCED_INLINE bool ValueIsCopied(const TValue& value) {
             return ValuesAreEqual(value, CopiedValue());
         }
 
-        inline bool KeyIsNone(const TKey& key) {
+        FORCED_INLINE bool KeyIsNone(const TKey& key) {
             return KeysAreEqual(key, NoneKey());
         }
-        inline bool KeysAreEqual(const TKey& lft, const TKey& rgh) {
+        FORCED_INLINE bool KeysAreEqual(const TKey& lft, const TKey& rgh) {
             return Parent->KeysAreEqual(lft, rgh);
         }
-        inline bool ValuesAreEqual(const TValue& lft, const TValue& rgh) {
+        FORCED_INLINE bool ValuesAreEqual(const TValue& lft, const TValue& rgh) {
             return Parent->ValuesAreEqual(lft, rgh);
         }
 
@@ -448,7 +456,7 @@ namespace NLFHT {
             TTableT* target = current->Next;
 
             bool tmp;
-            if (target->Put(entryKey, entryValue, TPutCondition(TPutCondition::IF_ABSENT, BabyValue()), tmp, false) != FULL_TABLE)
+            if (target->Put(entryKey, entryValue, TPutCondition(TPutCondition::COPYING, BabyValue()), tmp, false) != FULL_TABLE)
                 entry->Value = CopiedValue();
             else
                 current = target;
@@ -480,17 +488,29 @@ namespace NLFHT {
             return FULL_TABLE;
         }
 
-        if (cond.When == TPutCondition::IF_ABSENT) {
-            if (!ValueIsNone(oldValue) && !ValueIsBaby(oldValue))
-                return FAILED;
-        } else if (cond.When == TPutCondition::IF_MATCHES) {
-            if (!ValuesAreEqual(oldValue, cond.Value)) {
-                UnRefValue(oldValue, otherRefCnt);
-                return FAILED;
-            }
-        } else if (cond.When == TPutCondition::IF_EXISTS) {
-            if (ValueIsBaby(oldValue) || ValueIsNone(oldValue))
-                return FAILED;
+        // Good idea to make TPutCondition::When template parameter.
+        switch (cond.When) {
+            case TPutCondition::COPYING:
+                // It's possible to use IF_MATCHES instead, but extra ReadValueAndRef is expensive.
+                if (!ValueIsBaby(oldValue))
+                    return FAILED;
+                break;
+            case TPutCondition::IF_ABSENT:
+                if (!ValueIsNone(oldValue) && !ValueIsBaby(oldValue))
+                    return FAILED;
+                break;
+            case TPutCondition::IF_MATCHES:
+                if (!ValuesAreEqual(oldValue, cond.Value)) {
+                    UnRefValue(oldValue, otherRefCnt);
+                    return FAILED;
+                }
+                break;
+            case TPutCondition::IF_EXISTS:
+                if (ValueIsBaby(oldValue) || ValueIsNone(oldValue))
+                    return FAILED;
+                break;
+            default:
+                assert(0);
         }
 
         if (ValuesCompareAndSet(entry->Value, value, oldValue)) {
@@ -597,9 +617,9 @@ namespace NLFHT {
 
     template <class Owner>
     void TTable<Owner>::DoCopyTask() {
-        if (Parent->Head != this)
+        if (EXPECT_FALSE(Parent->Head != this))
             return;
-        if ((size_t)CopiedCnt >= Size) {
+        if (EXPECT_FALSE((size_t)CopiedCnt >= Size)) {
             if (CanPrepareToDelete())
                 PrepareToDelete();
             return;
@@ -609,7 +629,7 @@ namespace NLFHT {
         ForbidPrepareToDelete();
 
         // if table is already thrown away your lock is mistake
-        if (Parent->Head != this) {
+        if (EXPECT_FALSE(Parent->Head != this)) {
             AllowPrepareToDelete();
             return;
         }

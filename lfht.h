@@ -94,7 +94,9 @@ public:
             ALWAYS,
             IF_ABSENT, // put if THERE IS NO KEY in table. Can put only NONE in this way.
             IF_EXISTS, // put if THERE IS KEY
-            IF_MATCHES // put if THERE IS KEY and VALUE MATCHES GIVEN ONE
+            IF_MATCHES, // put if THERE IS KEY and VALUE MATCHES GIVEN ONE
+
+            COPYING // reserved for TTable internal use
         };
 
         EWhenToPut When;
@@ -242,6 +244,10 @@ private:
 
     double Density;
 
+    // TO DEBUG LEAKS
+    size_t TablesCreated;
+    size_t TablesDeleted;
+
 private:
     // thread-safefy and lock-free memory reclamation is done here
     inline void StopGuarding();
@@ -301,6 +307,8 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
     , TableToDeleteNumber(std::numeric_limits<AtomicBase>::max())
     , ToDelete(0)
     , Density(density)
+    , TablesCreated(0)
+    , TablesDeleted(0)
 {
     assert(Density > 1e-9);
     assert(Density < 1.);
@@ -326,12 +334,20 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::~TLFHashTable() {
         }
         while (ToDelete) {
             TTable* tmp = ToDelete;
-            ToDelete = ToDelete->Next;
+            ToDelete = ToDelete->NextToDelete;
             delete tmp;
         }
     }
     delete KeyManager;
     delete ValueManager;
+
+#ifndef NDEBUG
+    if (TablesCreated != TablesDeleted) {
+        std::cerr << "TablesCreated " << TablesCreated << '\n'
+             << "TablesDeleted " << TablesDeleted << '\n';
+        VERIFY(false, "Some table lost\n");
+    }
+#endif
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
@@ -494,8 +510,8 @@ void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete() {
                 // to the ToDelete list.
                 TTable* head = toDel;
                 TTable* tail = head;
-                while (tail->Next) {
-                    tail = tail->Next;
+                while (tail->NextToDelete) {
+                    tail = tail->NextToDelete;
                 }
 
                 while (true) {

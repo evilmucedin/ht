@@ -111,25 +111,25 @@ namespace NLFHT {
     template <>
     struct TReserved<uint32_t, 0> {
         inline static uint32_t Value() {
-            return 0x7FFFFFFCull;
+            return 0x7FFFFFFCul;
         }
     };
     template <>
     struct TReserved<uint32_t, 1> {
         inline static uint32_t Value() {
-            return 0x7FFFFFFDull;
+            return 0x7FFFFFFDul;
         }
     };
     template <>
     struct TReserved<uint32_t, 2> {
         inline static uint32_t Value() {
-            return 0x7FFFFFFEull;
+            return 0x7FFFFFFEul;
         }
     };
     template <>
     struct TReserved<uint32_t, 3> {
         inline static uint32_t Value() {
-            return 0x7FFFFFFFull;
+            return 0x7FFFFFFFul;
         }
     };
 
@@ -232,14 +232,15 @@ namespace NLFHT {
     // bit 62 not equal to bit 63 means state is COPYING
     template <class T>
     class TValueTraits<const T*> : public TValueTraitsBase<const T*> {
-        static const size_t SIGNIFICANT_BITS = 0x0000FFFFFFFFFFFFULL;
+        static const size_t NBITS_SIZE_T = sizeof(size_t)*8;
+        static const size_t SIGNIFICANT_BITS = ((size_t)1 << (NBITS_SIZE_T - 2)) - 1;
     public:
         typedef typename TValueTraitsBase<const T*>::TValue TValue;
         typedef typename TValueTraitsBase<const T*>::TAtomicValue TAtomicValue;
 
         static TValue PureValue(const TValue& p) {
             size_t& x = (size_t&)p;
-            size_t b62 = (x >> 62) & 1;
+            size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
             if (b62)
                 return (TValue)(x | ~(SIGNIFICANT_BITS));
             else
@@ -249,21 +250,19 @@ namespace NLFHT {
         static bool IsCopying(const TValue& p) {
             // hope that optimizer will make this code much better
             size_t& x = (size_t&)p;
-            size_t b62 = (x >> 62) & 1;
-            size_t b63 = (x >> 63) & 1;
-            if (b63 != b62)
-                return true;
-            return false;
+            size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
+            size_t b63 = (x >> (NBITS_SIZE_T - 1)) & 1;
+            return (b63 != b62);
         }
 
         static void SetCopying(TAtomicValue& p) {
-            Atomic& x = (Atomic&)p;
-            const size_t b62 = (x >> 62) & 1;
+            size_t& x = (size_t&)p;
+            size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
 
             if (!b62)
-                AtomicOr(x, 1UL << 63);
+                AtomicOr(x, 1UL << (NBITS_SIZE_T - 1));
             else
-                AtomicAnd(x, ~(1UL << 63));
+                AtomicAnd(x, ~(1UL << (NBITS_SIZE_T - 1)));
         }
 
         static bool IsReserved(const TValue& p) {
@@ -294,7 +293,7 @@ namespace NLFHT {
         }
 
         static bool IsReserved(const TValue& x) {
-            return x >= TReserved<TValue, 0>::Value();
+            return x <= TReserved<TValue, 3>::Value();
         }
         static bool IsGood(const TValue& p) {
             return (p & SIGNIFICANT_BITS) == p;
@@ -309,7 +308,7 @@ namespace NLFHT {
         {
         }
 
-        inline bool operator() (const Key& lft, const Key& rgh) {
+        inline bool operator() (const Key& lft, const Key& rgh) const {
             return AreEqual(lft, rgh);
         }
 
@@ -328,7 +327,7 @@ namespace NLFHT {
         {
         }
 
-        inline bool operator()(const Val& lft, const Val& rgh) {
+        FORCED_INLINE bool operator()(const Val& lft, const Val& rgh) {
             if (EXPECT_FALSE(TValueTraits<Val>::IsCopying(lft) != TValueTraits<Val>::IsCopying(rgh)))
                 return false;
             const Val lftPure = TValueTraits<Val>::PureValue(lft);
@@ -354,7 +353,7 @@ namespace NLFHT {
         {
         }
 
-        inline size_t operator()(const Key& key) {
+        inline size_t operator()(const Key& key) const {
             return Hash(key);
         }
 
