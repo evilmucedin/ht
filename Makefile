@@ -8,7 +8,11 @@ else
         ifeq ($(HOSTNAME), memcompute3)
             GPATH = /usr/bin/g++-4.6
         else
-            GPATH = /usr/bin/g++
+            ifeq ($(HOSTNAME), memcompute4)
+	        GPATH = /usr/bin/g++-4.6
+            else
+                GPATH = /usr/bin/g++
+            endif
         endif
     endif
 endif
