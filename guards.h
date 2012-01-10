@@ -126,7 +126,9 @@ namespace NLFHT {
 
         static TGuard* ForTable(TGuardable* pTable) {
             VERIFY(GuardTable, "Register in table\n");
-            return (*GuardTable)[pTable];
+            TGuardTable::const_iterator toTable = GuardTable->find(pTable);
+            assert(toTable != GuardTable->end());
+            return toTable->second;
         }
     private:
         // yhash_map has too big constant

@@ -75,7 +75,7 @@ namespace NLFHT {
             UpperKeyCountBound = Min(Size, (size_t)(ceil(tooBigDensity * Size)));
 
 #ifndef NDEBUG
-            ++Parent->TablesCreated;
+            AtomicIncrement(Parent->TablesCreated);
 #endif
         }
 
@@ -87,7 +87,7 @@ namespace NLFHT {
             }
 
 #ifndef NDEBUG
-            ++Parent->TablesDeleted;
+            AtomicIncrement(Parent->TablesDeleted);
 #endif
         }
 
@@ -509,6 +509,8 @@ namespace NLFHT {
                 if (ValueIsBaby(oldValue) || ValueIsNone(oldValue))
                     return FAILED;
                 break;
+            case TPutCondition::ALWAYS:
+                break;
             default:
                 assert(0);
         }
@@ -639,7 +641,7 @@ namespace NLFHT {
         size_t start = finish - CopyTaskSize;
         if (start < Size) {
             finish = Min(Size, finish);
-            for (size_t i = start; i < finish; i++)
+            for (size_t i = start; i < finish; ++i)
                 Copy(&Data[i]);
         }
 

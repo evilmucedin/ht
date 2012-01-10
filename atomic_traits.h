@@ -256,8 +256,8 @@ namespace NLFHT {
         }
 
         static void SetCopying(TAtomicValue& p) {
-            size_t& x = (size_t&)p;
-            size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
+            Atomic& x = (Atomic&)p;
+            AtomicBase b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
 
             if (!b62)
                 AtomicOr(x, 1UL << (NBITS_SIZE_T - 1));

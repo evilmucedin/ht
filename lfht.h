@@ -160,8 +160,8 @@ public:
                  const KeyCmp& keysAreEqual = KeyCmp(),
                  const HashFn& hash = HashFn(),
                  const ValCmp& valuesAreEqual = ValCmp(),
-                 std::auto_ptr<KeyMgr> keyMgr = std::auto_ptr<KeyMgr>(),
-                 std::auto_ptr<ValMgr> valMgr = std::auto_ptr<ValMgr>());
+                 KeyMgr* keyMgr = 0,
+                 ValMgr* valMgr = 0);
     ~TLFHashTable();
 
     // return NotFound value if there is no such key
@@ -245,8 +245,8 @@ private:
     double Density;
 
     // TO DEBUG LEAKS
-    size_t TablesCreated;
-    size_t TablesDeleted;
+    Atomic TablesCreated;
+    Atomic TablesDeleted;
 
 private:
     // thread-safefy and lock-free memory reclamation is done here
@@ -298,11 +298,13 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
                                  const TKeyComparator& keysAreEqual,
                                  const THashFn& hash,
                                  const TValueComparator& valuesAreEqual,
-                                 std::auto_ptr<TKeyManager> keyManager,
-                                 std::auto_ptr<TValueManager> valueManager)
+                                 TKeyManager* keyManager,
+                                 TValueManager* valueManager)
     : Hash(hash)
     , KeysAreEqual(keysAreEqual)
     , ValuesAreEqual(valuesAreEqual)
+    , KeyManager(keyManager)
+    , ValueManager(valueManager)
     , TableNumber(0)
     , TableToDeleteNumber(std::numeric_limits<AtomicBase>::max())
     , ToDelete(0)
@@ -313,10 +315,8 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
     assert(Density > 1e-9);
     assert(Density < 1.);
 
-    KeyManager = keyManager.release();
     if (!KeyManager)
         KeyManager = new TKeyManager();
-    ValueManager = valueManager.release();
     if (!ValueManager)
         ValueManager = new TValueManager();
 

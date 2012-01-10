@@ -77,8 +77,7 @@ namespace NLFHT {
             TGuard* tmp = current;
             current = current->Next;
 
-            VERIFY(tmp->Owner == TGuard::NO_OWNER,
-                   "Some thread haven't finish his work yet\n");
+            VERIFY(tmp->Owner == TGuard::NO_OWNER, "Some thread haven't finish his work yet\n");
             delete tmp;
         }
     }
