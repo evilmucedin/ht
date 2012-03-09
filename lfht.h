@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <iostream>
 
 namespace NLFHT {
     class TRegistrable {
