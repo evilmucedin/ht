@@ -28,7 +28,8 @@ namespace NLFHT
     {
     public:
         template <class U>
-        class TRedirected : public T<U> {
+        class TRedirected : public T<U>
+        {
         public:
             template <class P>
             TRedirected(P param)
@@ -49,6 +50,7 @@ namespace NLFHT
         {
             m_Table.StartGuarding(hint);
         }
+
         ~Guarding()
         {
             m_Table.StopGuarding();
@@ -131,7 +133,8 @@ public:
         m_Table.RegisterThread();
     }
 
-    ~TLFHTRegistration() {
+    ~TLFHTRegistration()
+    {
         m_Table.ForgetThread();
     }
 };
@@ -146,10 +149,10 @@ template <
     class KeyMgr = NLFHT::Proxy<NLFHT::DefaultKeyManager>,
     class ValMgr = NLFHT::Proxy<NLFHT::DefaultValueManager>
 >
-class TLFHashTable : public NLFHT::LFHashTableBase
+class LFHashTable : public NLFHT::LFHashTableBase
 {
 public:
-    typedef TLFHashTable<K, Val, KeyCmp, HashFn, ValCmp, Alloc, KeyMgr, ValMgr> Self;
+    typedef LFHashTable<K, Val, KeyCmp, HashFn, ValCmp, Alloc, KeyMgr, ValMgr> Self;
 
     friend class NLFHT::Guarding<Self>;
     friend class NLFHT::Table<Self>;
@@ -158,9 +161,8 @@ public:
     typedef K Key;
     typedef Val Value;
     typedef KeyCmp KeyComparator;
-    typedef HashFn HashFn;
     typedef ValCmp ValueComparator;
-    typedef Alloc TAllocator;
+    typedef Alloc Allocator;
     typedef typename KeyMgr::template TRedirected<Self> KeyManager;
     typedef typename ValMgr::template TRedirected<Self> ValueManager;
 
@@ -179,7 +181,7 @@ public:
     typedef typename NLFHT::Entry<Key, Value> Entry;
     typedef typename NLFHT::ConstIterator<Self> ConstIterator;
 
-    typedef typename TAllocator::template rebind<Table>::other TableAllocator;
+    typedef typename Allocator::template rebind<Table>::other TableAllocator;
 
     // class incapsulates CAS possibility
     struct PutCondition
@@ -220,14 +222,14 @@ public:
         }
     };
 
-    class TSearchHint
+    class SearchHint
     {
         public:
-            friend class TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc, KeyMgr, ValMgr>;
-            friend class NLFHT::Table< TLFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc, KeyMgr, ValMgr> >;
+            friend class LFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc, KeyMgr, ValMgr>;
+            friend class NLFHT::Table< LFHashTable<Key, Val, KeyCmp, HashFn, ValCmp, Alloc, KeyMgr, ValMgr> >;
 
         public:
-            TSearchHint()
+            SearchHint()
                 : m_Guard(0)
                 , m_Table(0)
             {
@@ -242,7 +244,7 @@ public:
             bool m_KeySet;
 
         private:
-            TSearchHint(AtomicBase tableNumber, Table* table, Entry* entry, bool keySet)
+            SearchHint(AtomicBase tableNumber, Table* table, Entry* entry, bool keySet)
                 : m_Guard(0)
                 , m_TableNumber(tableNumber)
                 , m_Table(table)
@@ -253,11 +255,11 @@ public:
     };
 
 public:
-    TLFHashTable(size_t initialSize = 1, double density = 0.5,
+    LFHashTable(size_t initialSize = 1, double density = 0.5,
                  const KeyComparator& keysAreEqual = KeyCmp(),
                  const HashFn& hash = HashFn(),
                  const ValueComparator& valuesAreEqual = ValCmp());
-    TLFHashTable(const TLFHashTable& other);
+    LFHashTable(const LFHashTable& other);
 
     // NotFound value getter to compare with
     inline static Value NotFound()
@@ -266,30 +268,30 @@ public:
     }
 
     // return NotFound value if there is no such key
-    Value Get(Key key, TSearchHint* hint = 0);
+    Value Get(Key key, SearchHint* hint = 0);
     // returns true if condition was matched
-    void Put(Key key, Value value, TSearchHint* hint = 0);
-    bool PutIfMatch(Key key, Value newValue, Value oldValue, TSearchHint *hint = 0);
-    bool PutIfAbsent(Key key, Value value, TSearchHint* hint = 0);
-    bool PutIfExists(Key key, Value value, TSearchHint* hint = 0);
+    void Put(Key key, Value value, SearchHint* hint = 0);
+    bool PutIfMatch(Key key, Value newValue, Value oldValue, SearchHint *hint = 0);
+    bool PutIfAbsent(Key key, Value value, SearchHint* hint = 0);
+    bool PutIfExists(Key key, Value value, SearchHint* hint = 0);
 
     template <class OtherTable>
     void PutAllFrom(const OtherTable& other);
 
     // returns true if key was really deleted
-    bool Delete(Key key, TSearchHint* hint = 0);
-    bool DeleteIfMatch(Key key, Value oldValue, TSearchHint* hint = 0);
+    bool Delete(Key key, SearchHint* hint = 0);
+    bool DeleteIfMatch(Key key, Value oldValue, SearchHint* hint = 0);
 
     // assume, that StartGuarding and StopGuarding are called by client (by creating TGuarding on stack)
-    Value GetNoGuarding(Key key, TSearchHint* hint = 0);
+    Value GetNoGuarding(Key key, SearchHint* hint = 0);
 
-    void PutNoGuarding(Key key, Value value, TSearchHint* hint = 0);
-    bool PutIfMatchNoGuarding(Key key, Value newValue, Value oldValue, TSearchHint *hint = 0);
-    bool PutIfAbsentNoGuarding(Key key, Value value, TSearchHint* hint = 0);
-    bool PutIfExistsNoGuarding(Key key, Value value, TSearchHint* hint = 0);
+    void PutNoGuarding(Key key, Value value, SearchHint* hint = 0);
+    bool PutIfMatchNoGuarding(Key key, Value newValue, Value oldValue, SearchHint *hint = 0);
+    bool PutIfAbsentNoGuarding(Key key, Value value, SearchHint* hint = 0);
+    bool PutIfExistsNoGuarding(Key key, Value value, SearchHint* hint = 0);
 
-    bool DeleteNoGuarding(Key key, TSearchHint* hint = 0);
-    bool DeleteIfMatchNoGuarding(Key key, Value oldValue, TSearchHint* hint = 0);
+    bool DeleteNoGuarding(Key key, SearchHint* hint = 0);
+    bool DeleteIfMatchNoGuarding(Key key, Value oldValue, SearchHint* hint = 0);
 
     // massive operations
     template <class OtherTable>
@@ -371,7 +373,7 @@ private:
     class THeadWrapper : public NLFHT::VolatilePointerWrapper<Table>
     {
     public:
-        THeadWrapper(TLFHashTable* parent)
+        THeadWrapper(LFHashTable* parent)
             : m_Parent(parent)
         {
         }
@@ -400,13 +402,13 @@ private:
 #endif
         }
     private:
-        TLFHashTable* m_Parent;
+        LFHashTable* m_Parent;
     };
 
     class THeadToDeleteWrapper : public NLFHT::VolatilePointerWrapper<Table>
     {
     public:
-        THeadToDeleteWrapper(TLFHashTable* parent)
+        THeadToDeleteWrapper(LFHashTable* parent)
             : m_Parent(parent)
         {
         }
@@ -428,7 +430,7 @@ private:
             }
         }
     private:
-        TLFHashTable* m_Parent;
+        LFHashTable* m_Parent;
     };
 
     // is used by TTable
@@ -440,7 +442,7 @@ private:
     ValuesAreEqual m_ValuesAreEqual;
 
     // allocators
-    TableAllocator TableAllocator;
+    TableAllocator m_TableAllocator;
 
     // whole table structure
     THeadWrapper m_Head;
@@ -467,27 +469,29 @@ private:
 
 private:
     template <bool ShouldSetGuard>
-    Value GetImpl(const Key& key, TSearchHint* hint = 0);
+    Value GetImpl(const Key& key, SearchHint* hint = 0);
 
     template <bool ShouldSetGuard, bool ShouldDeleteKey>
-    bool PutImpl(const Key& key, const Value& value, const PutCondition& condition, TSearchHint* hint = 0);
+    bool PutImpl(const Key& key, const Value& value, const PutCondition& condition, SearchHint* hint = 0);
 
     // thread-safefy and lock-free memory reclamation is done here
     inline void StopGuarding();
-    inline void StartGuarding(TSearchHint* hint);
+    inline void StartGuarding(SearchHint* hint);
 
     void TryToDelete();
 
     // allocators usage wrappers
-    Table* CreateTable(TLFHashTable* parent, size_t size) {
-        Table* newTable = TableAllocator.allocate(1);
-        try {
+    Table* CreateTable(LFHashTable* parent, size_t size) {
+        Table* newTable = m_TableAllocator.allocate(1);
+        try
+        {
             new (newTable) Table(parent, size);
             newTable->m_AllocSize = size;
             return newTable;
         }
-        catch (...) {
-            TableAllocator.deallocate(newTable, size);
+        catch (...)
+        {
+            m_TableAllocator.deallocate(newTable, size);
             throw;
         }
     }
@@ -495,22 +499,27 @@ private:
 #ifdef TRACE
         Trace(Cerr, "DeleteTable %zd\n", (size_t)table);
 #endif
-        if (shouldDeleteKeys) {
+        if (shouldDeleteKeys)
+        {
             for (typename Table::AllKeysConstIterator it = table->BeginAllKeys(); it.IsValid(); ++it)
+            {
                 UnRefKey(it.Key());
+            }
         }
-        TableAllocator.destroy(table);
-        TableAllocator.deallocate(table, table->m_AllocSize);
+        m_TableAllocator.destroy(table);
+        m_TableAllocator.deallocate(table, table->m_AllocSize);
     }
 
     // destructing
     void Destroy();
 
     // traits wrappers
-    static Key KeyNone() {
+    static Key KeyNone()
+    {
         return HTKeyTraits::None();
     }
-    void UnRefKey(Key key, size_t cnt = 1) {
+    void UnRefKey(Key key, size_t cnt = 1)
+    {
         m_KeyManager.UnRef(key, cnt);
     }
 
@@ -559,10 +568,10 @@ private:
 // need dirty hacks to avoid problems with macros that accept template as a parameter
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-NLFHT_THREAD_LOCAL NLFHT::Guard< TLFHashTable<K, V, KC, HF, VC, A, KM, VM> >* TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::m_Guard((TGuard*)0);
+NLFHT_THREAD_LOCAL NLFHT::Guard< LFHashTable<K, V, KC, HF, VC, A, KM, VM> >* LFHashTable<K, V, KC, HF, VC, A, KM, VM>::m_Guard((Guard*)0);
 
-template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, double density,
+template <typename K, typename V, class KC, class HashFn, class VC, class A, class KM, class VM>
+LFHashTable<K, V, KC, HashFn, VC, A, KM, VM>::LFHashTable(size_t initialSize, double density,
                                  const KeyComparator& keysAreEqual,
                                  const HashFn& hash,
                                  const ValueComparator& valuesAreEqual)
@@ -589,7 +598,7 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(size_t initialSize, doub
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(const TLFHashTable& other)
+LFHashTable<K, V, KC, HF, VC, A, KM, VM>::LFHashTable(const LFHashTable& other)
     : m_Density(other.m_Density)
     , m_Hash(other.m_Hash)
     , m_KeysAreEqual(other.m_KeysAreEqual)
@@ -618,8 +627,8 @@ TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TLFHashTable(const TLFHashTable& othe
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
 template <bool ShouldSetGuard>
-typename TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Value
-TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::GetImpl(const Key& key, TSearchHint* hint) {
+typename LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Value
+LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::GetImpl(const Key& key, SearchHint* hint) {
     assert(!m_KeysAreEqual(key, KeyNone()));
 #ifdef TRACE
     Trace(Cerr, "TLFHashTable.Get(%s)\n", ~KeyToString(key));
@@ -693,8 +702,8 @@ TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::GetImpl(const Key& key, TSearchHint
 // returns true if new key appeared in a table
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
 template <bool ShouldSetGuard, bool ShouldDeleteKey>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutImpl(const Key& key, const Value& value, const PutCondition& cond, TSearchHint* hint)
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutImpl(const Key& key, const Value& value, const PutCondition& cond, SearchHint* hint)
 {
     assert(THTValueTraits::IsGood(value));
     assert(!m_KeysAreEqual(key, KeyNone()));
@@ -762,91 +771,99 @@ PutImpl(const Key& key, const Value& value, const PutCondition& cond, TSearchHin
 // hash table access methods
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-typename TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Value
-TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-Get(Key key, TSearchHint* hint)
+typename LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Value
+LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+Get(Key key, SearchHint* hint)
 {
     return GetImpl<true>(key, hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-void TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-Put(Key key, Value value, TSearchHint* hint)
+void LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+Put(Key key, Value value, SearchHint* hint)
 {
     PutImpl<true, true>(key, value, PutCondition(PutCondition::IF_MATCHES), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutIfMatch(Key key, Value newValue, Value oldValue, TSearchHint* hint)
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutIfMatch(Key key, Value newValue, Value oldValue, SearchHint* hint)
 {
     return PutImpl<true, true>(key, newValue, PutCondition(PutCondition::IF_MATCHES, oldValue), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutIfAbsent(Key key, Value value, TSearchHint* hint)
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutIfAbsent(Key key, Value value, SearchHint* hint)
 {
     return PutImpl<true, true>(key, value, PutCondition(PutCondition::IF_ABSENT, ValueBaby()), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutIfExists(Key key, Value newValue, TSearchHint* hint)
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutIfExists(Key key, Value newValue, SearchHint* hint)
 {
     return PutImpl<true, true>(key, newValue, PutCondition(PutCondition::IF_EXISTS), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Delete(Key key, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Delete(Key key, SearchHint* hint) {
     return PutImpl<true, false>(key, ValueNone(), PutCondition(PutCondition::IF_EXISTS), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteIfMatch(Key key, Value oldValue, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteIfMatch(Key key, Value oldValue, SearchHint* hint)
+{
     return PutImpl<true, false>(key, ValueNone(), PutCondition(PutCondition::IF_MATCHES, oldValue), hint);
 }
 
 // no guarding
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-typename TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Value
-TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-GetNoGuarding(Key key, TSearchHint* hint) {
+typename LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::Value
+LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+GetNoGuarding(Key key, SearchHint* hint)
+{
     return GetImpl<false>(key, hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-void TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutNoGuarding(Key key, Value value, TSearchHint* hint) {
+void LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutNoGuarding(Key key, Value value, SearchHint* hint)
+{
     PutImpl<false, true>(key, value, PutCondition(), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutIfMatchNoGuarding(Key key, Value newValue, Value oldValue, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutIfMatchNoGuarding(Key key, Value newValue, Value oldValue, SearchHint* hint)
+{
     return PutImpl<false, true>(key, newValue, PutCondition(PutCondition::IF_MATCHES, oldValue), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutIfAbsentNoGuarding(Key key, Value value, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutIfAbsentNoGuarding(Key key, Value value, SearchHint* hint)
+{
     return PutImpl<false, true>(key, value, PutCondition(PutCondition::IF_ABSENT, ValueBaby()), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
-PutIfExistsNoGuarding(Key key, Value newValue, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::
+PutIfExistsNoGuarding(Key key, Value newValue, SearchHint* hint)
+{
     return PutImpl<false, true>(key, newValue, PutCondition(PutCondition::IF_EXISTS), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteNoGuarding(Key key, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteNoGuarding(Key key, SearchHint* hint)
+{
     return PutImpl<false, false>(key, ValueNone(), PutCondition(PutCondition::IF_EXISTS), hint);
 }
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteIfMatchNoGuarding(Key key, Value oldValue, TSearchHint* hint) {
+bool LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteIfMatchNoGuarding(Key key, Value oldValue, SearchHint* hint)
+{
     return PutImpl<false, false>(key, ValueNone(), PutCondition(PutCondition::IF_MATCHES, oldValue), hint);
 }
 
@@ -854,9 +871,11 @@ bool TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::DeleteIfMatchNoGuarding(Key ke
 
 template <typename Key, typename V, class KC, class HF, class VC, class A, class KM, class VM>
 template <class OtherTable>
-void TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::PutAllFrom(const OtherTable& other) {
+void LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::PutAllFrom(const OtherTable& other)
+{
     TLFHTRegistration registration(*this);
-    for (ConstIterator it = other.Begin(); it.IsValid(); it++) {
+    for (ConstIterator it = other.Begin(); it.IsValid(); ++it)
+    {
         Key keyClone = m_KeyManager.CloneAndRef(it.Key());
         Key valueClone = m_ValueManager.CloneAndRef(it.Value());
         Put(keyClone, valueClone);
@@ -866,7 +885,8 @@ void TLFHashTable<Key, V, KC, HF, VC, A, KM, VM>::PutAllFrom(const OtherTable& o
 // how to guarp
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-inline void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::StartGuarding(TSearchHint* hint) {
+inline void LFHashTable<K, V, KC, HF, VC, A, KM, VM>::StartGuarding(SearchHint* hint)
+{
     if (hint) {
         if (EXPECT_FALSE(!hint->m_Guard))
             hint->m_Guard = GuardForTable();
@@ -890,13 +910,15 @@ inline void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::StartGuarding(TSearchHint
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-inline void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::StopGuarding() {
+inline void LFHashTable<K, V, KC, HF, VC, A, KM, VM>::StopGuarding()
+{
     assert(m_Guard);
     m_Guard->StopGuarding();
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete() {
+void LFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete()
+{
     Table* toDel = m_HeadToDelete;
     if (!toDel)
         return;
@@ -909,8 +931,10 @@ void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete() {
     {
         if (AtomicCas(&m_HeadToDelete, (Table*)0, toDel))
         {
-            if (m_Head == oldHead) {
-                while (toDel) {
+            if (m_Head == oldHead)
+            {
+                while (toDel)
+                {
                     Table* nextToDel = toDel->m_NextToDelete;
 #ifdef TRACE_MEM
                     Trace(Cerr, "Deleted table %zd of size %zd\n", (size_t)toDel, toDel->Size);
@@ -918,7 +942,9 @@ void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete() {
                     DeleteTable(toDel, true);
                     toDel = nextToDel;
                 }
-            } else {
+            }
+            else
+            {
                 // This is handling of possible ABA problem.
                 // If some other table was removed from list,
                 // successfull CAS doesn't guarantee that we have
@@ -926,15 +952,19 @@ void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete() {
                 // to the ToDelete list.
                 Table* head = toDel;
                 Table* tail = head;
-                while (tail->m_NextToDelete) {
+                while (tail->m_NextToDelete)
+                {
                     tail = tail->m_NextToDelete;
                 }
 
-                while (true) {
+                while (true)
+                {
                     Table* oldToDelete = m_HeadToDelete;
                     tail->m_NextToDelete = oldToDelete;
                     if (AtomicCas(&m_HeadToDelete, head, oldToDelete))
+                    {
                         break;
+                    }
                 }
             }
         }
@@ -942,22 +972,25 @@ void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::TryToDelete() {
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-typename TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::ConstIterator
-TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::Begin() const {
+typename LFHashTable<K, V, KC, HF, VC, A, KM, VM>::ConstIterator
+LFHashTable<K, V, KC, HF, VC, A, KM, VM>::Begin() const
+{
     return ConstIterator(this);
 }
 
 // JUST TO DEBUG
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::Print(std::ostream& ostr) {
+void LFHashTable<K, V, KC, HF, VC, A, KM, VM>::Print(std::ostream& ostr)
+{
     std::stringstream buf;
     buf << "TLFHashTable printout\n";
 
     buf << '\n';
 
     Table* cur = m_Head;
-    while (cur) {
+    while (cur)
+    {
         cur->Print(buf);
         Table* next = cur->GetNext();
         if (next)
@@ -973,10 +1006,12 @@ void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::Print(std::ostream& ostr) {
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-size_t TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::Size() const {
+size_t LFHashTable<K, V, KC, HF, VC, A, KM, VM>::Size() const
+{
     size_t result = 0;
     ConstIterator it = Begin();
-    while (it.IsValid()) {
+    while (it.IsValid())
+    {
         ++result;
         ++it;
     }
@@ -984,7 +1019,8 @@ size_t TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::Size() const {
 }
 
 template <typename K, typename V, class KC, class HF, class VC, class A, class KM, class VM>
-void TLFHashTable<K, V, KC, HF, VC, A, KM, VM>::Trace(std::ostream& ostr, const char* format, ...) {
+void LFHashTable<K, V, KC, HF, VC, A, KM, VM>::Trace(std::ostream& ostr, const char* format, ...)
+{
     char buf1[10000];
     sprintf(buf1, "Thread %zd: ", (size_t)&errno);
 

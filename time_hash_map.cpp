@@ -252,7 +252,7 @@ struct lf_hash_map_constants
     enum { bucket_count_expand_factor = 4 };  // multiplier for bucket expansion
 };
 
-typedef TLFHashTable<size_t, size_t> lf_hash_map;
+typedef LFHashTable<size_t, size_t> lf_hash_map;
 typedef std::unordered_map<size_t, size_t> unordered_map;
 
 
@@ -270,9 +270,9 @@ template<class MapType, class Hint> inline void delete_map(MapType& map_,size_t 
 template<class MapType> inline size_t size(const MapType& map_) {
     return map_.size();
 }
-template<> inline void insert_map<lf_hash_map, lf_hash_map::TSearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::TSearchHint* hint) { map_.PutIfAbsent(key_, key_ + 1, hint);  }
-template<> inline bool find_map<lf_hash_map, lf_hash_map::TSearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::TSearchHint* hint) {  return map_.Get(key_, hint) != map_.NotFound(); }
-template<> inline void delete_map<lf_hash_map, lf_hash_map::TSearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::TSearchHint* hint) { map_.Delete(key_, hint); }
+template<> inline void insert_map<lf_hash_map, lf_hash_map::SearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::SearchHint* hint) { map_.PutIfAbsent(key_, key_ + 1, hint);  }
+template<> inline bool find_map<lf_hash_map, lf_hash_map::SearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::SearchHint* hint) {  return map_.Get(key_, hint) != map_.NotFound(); }
+template<> inline void delete_map<lf_hash_map, lf_hash_map::SearchHint>(lf_hash_map& map_,size_t key_, lf_hash_map::SearchHint* hint) { map_.Delete(key_, hint); }
 template<> inline size_t size<lf_hash_map>(const lf_hash_map& map_) { return map_.Size(); }
 
 template<typename MapType>
@@ -286,7 +286,7 @@ struct TRegistration {
 template<>
 struct TRegistration<lf_hash_map> {
     TLFHTRegistration m_registration;
-    typedef lf_hash_map::TSearchHint Hint;
+    typedef lf_hash_map::SearchHint Hint;
 
     TRegistration(lf_hash_map& map)
         : m_registration(map)

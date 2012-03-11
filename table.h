@@ -51,7 +51,7 @@ namespace NLFHT {
         typedef TableConstIterator<Self> ConstIteratorT;
         typedef TableConstIterator<Self, true> AllKeysConstIterator;
         typedef typename Parent::PutCondition PutCondition;
-        typedef typename Parent::TSearchHint SearchHint;
+        typedef typename Parent::SearchHint SearchHint;
 
         enum EResult {
             FULL_TABLE,

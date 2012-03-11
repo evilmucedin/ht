@@ -249,8 +249,7 @@ namespace NLFHT
     class Guard : public BaseGuard
     {
     public:
-        typedef Prt TParent;
-        typedef typename TParent::GuardManager GuardManager;
+        typedef typename Prt::GuardManager GuardManager;
 
         Guard(GuardManager* parent)
             : BaseGuard(parent)
@@ -262,16 +261,16 @@ namespace NLFHT
     class GuardManager : public BaseGuardManager
     {
     public:
-        typedef Prt TParent;
-        typedef typename TParent::TGuard Guard;
+        typedef Prt Parent;
+        typedef typename Parent::Guard Guard;
 
-        GuardManager(TParent* parent)
+        GuardManager(Parent* parent)
             : m_Parent(parent)
         {
         }
 
     private:
-        TParent* m_Parent;
+        Parent* m_Parent;
 
     private:
         virtual BaseGuard* NewGuard()
