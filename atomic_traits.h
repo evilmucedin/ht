@@ -17,16 +17,16 @@ namespace NLFHT {
     // traits classes declarations
 
     template <class T>
-    class TAtomicTraits;
+    class AtomicTraits;
 
     template <class T>
-    class TKeyTraits;
+    class KeyTraits;
 
     template <class T>
-    class TValueTraits;
+    class ValueTraits;
 
     template<class T, size_t N>
-    struct TReserved {
+    struct Reserved {
         static T Value();
     };
 
@@ -34,100 +34,100 @@ namespace NLFHT {
     // pointers for first double word are always invalid
 
     template <class T>
-    struct TReserved<T*, 0> {
+    struct Reserved<T*, 0> {
         inline static T* Value() {
             return (T*)0;
         }
     };
     template <class T>
-    struct TReserved<T*, 1> {
+    struct Reserved<T*, 1> {
         inline static T* Value() {
             return (T*)1;
         }
     };
     template <class T>
-    struct TReserved<T*, 2> {
+    struct Reserved<T*, 2> {
         inline static T* Value() {
             return (T*)2;
         }
     };
     template <class T>
-    struct TReserved<T*, 3> {
+    struct Reserved<T*, 3> {
         inline static T* Value() {
             return (T*)3;
         }
     };
 
     template <class T>
-    struct TReserved<const T*, 0> {
+    struct Reserved<const T*, 0> {
         inline static const T* Value() {
             return (const T*)0;
         }
     };
     template <class T>
-    struct TReserved<const T*, 1> {
+    struct Reserved<const T*, 1> {
         inline static const T* Value() {
             return (const T*)1;
         }
     };
     template <class T>
-    struct TReserved<const T*, 2> {
+    struct Reserved<const T*, 2> {
         inline static const T* Value() {
             return (const T*)2;
         }
     };
     template <class T>
-    struct TReserved<const T*, 3> {
+    struct Reserved<const T*, 3> {
         inline static const T* Value() {
             return (const T*)3;
         }
     };
 
     template <>
-    struct TReserved<uint64_t, 0> {
+    struct Reserved<uint64_t, 0> {
         inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFCull;
         }
     };
     template <>
-    struct TReserved<uint64_t, 1> {
+    struct Reserved<uint64_t, 1> {
         inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFDull;
         }
     };
     template <>
-    struct TReserved<uint64_t, 2> {
+    struct Reserved<uint64_t, 2> {
         inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFEull;
         }
     };
     template <>
-    struct TReserved<uint64_t, 3> {
+    struct Reserved<uint64_t, 3> {
         inline static uint64_t Value() {
             return 0x7FFFFFFFFFFFFFFFull;
         }
     };
 
     template <>
-    struct TReserved<uint32_t, 0> {
+    struct Reserved<uint32_t, 0> {
         inline static uint32_t Value() {
             return 0x7FFFFFFCul;
         }
     };
     template <>
-    struct TReserved<uint32_t, 1> {
+    struct Reserved<uint32_t, 1> {
         inline static uint32_t Value() {
             return 0x7FFFFFFDul;
         }
     };
     template <>
-    struct TReserved<uint32_t, 2> {
+    struct Reserved<uint32_t, 2> {
         inline static uint32_t Value() {
             return 0x7FFFFFFEul;
         }
     };
     template <>
-    struct TReserved<uint32_t, 3> {
+    struct Reserved<uint32_t, 3> {
         inline static uint32_t Value() {
             return 0x7FFFFFFFul;
         }
@@ -143,7 +143,7 @@ namespace NLFHT {
     };
 
     template <class T>
-    class TAtomicTraits<T*> : public TAtomicTraitsBase<T*> {
+    class AtomicTraits<T*> : public TAtomicTraitsBase<T*> {
     public:
         typedef typename TAtomicTraitsBase<T*>::TType TType;
         typedef typename TAtomicTraitsBase<T*>::TAtomicType TAtomicType;
@@ -158,7 +158,7 @@ namespace NLFHT {
     };
 
     template <>
-    class TAtomicTraits<size_t> : public TAtomicTraitsBase<size_t> {
+    class AtomicTraits<size_t> : public TAtomicTraitsBase<size_t> {
     public:
         static bool CompareAndSet(TAtomicType& dest, TType newValue, TType oldValue) {
             return ::AtomicCas((Atomic*)&dest, newValue, oldValue);
@@ -170,16 +170,16 @@ namespace NLFHT {
     };
 
     template <>
-    std::string TAtomicTraits<const char*>::ToString(const TAtomicTraits<const char*>::TType& s);
+    std::string AtomicTraits<const char*>::ToString(const AtomicTraits<const char*>::TType& s);
 
     template <class T>
-    class TKeyTraitsBase : public TAtomicTraits<T> {
+    class TKeyTraitsBase : public AtomicTraits<T> {
     public:
-        typedef typename TAtomicTraits<T>::TType TKey;
-        typedef typename TAtomicTraits<T>::TAtomicType TAtomicKey;
+        typedef typename AtomicTraits<T>::TType TKey;
+        typedef typename AtomicTraits<T>::TAtomicType TAtomicKey;
 
         inline static T None() {
-            return TReserved<T, 0>::Value();
+            return Reserved<T, 0>::Value();
         }
 
         inline static bool IsReserved(TKey k) {
@@ -188,41 +188,41 @@ namespace NLFHT {
     };
 
     template <class T>
-    class TKeyTraits<const T*> : public TKeyTraitsBase<const T*> {
+    class KeyTraits<const T*> : public TKeyTraitsBase<const T*> {
     public:
         typedef typename TKeyTraitsBase<const T*>::TKey TKey;
         typedef typename TKeyTraitsBase<const T*>::TAtomicKey TAtomicKey;
     };
 
     template <>
-    class TKeyTraits<const char*> : public TKeyTraitsBase<const char*> {
+    class KeyTraits<const char*> : public TKeyTraitsBase<const char*> {
     public:
     };
 
     template <>
-    class TKeyTraits<size_t> : public TKeyTraitsBase<size_t> {
+    class KeyTraits<size_t> : public TKeyTraitsBase<size_t> {
     public:
     };
 
     // value specific traits
 
     template <class T>
-    class TValueTraitsBase : public TAtomicTraits<T> {
+    class TValueTraitsBase : public AtomicTraits<T> {
     public:
-        typedef typename TAtomicTraits<T>::TType TValue;
-        typedef typename TAtomicTraits<T>::TAtomicType TAtomicValue;
+        typedef typename AtomicTraits<T>::TType TValue;
+        typedef typename AtomicTraits<T>::TAtomicType TAtomicValue;
 
         inline static T None() {
-            return TReserved<T, 0>::Value();
+            return Reserved<T, 0>::Value();
         }
         inline static T Baby() {
-            return TReserved<T, 1>::Value();
+            return Reserved<T, 1>::Value();
         }
         inline static T Copied() {
-            return TReserved<T, 2>::Value();
+            return Reserved<T, 2>::Value();
         }
         inline static T Deleted() {
-            return TReserved<T, 3>::Value();
+            return Reserved<T, 3>::Value();
         }
 
     };
@@ -231,7 +231,7 @@ namespace NLFHT {
     // see http://support.amd.com/us/Embedded_TechDocs/24593.pdf
     // bit 62 not equal to bit 63 means state is COPYING
     template <class T>
-    class TValueTraits<const T*> : public TValueTraitsBase<const T*> {
+    class ValueTraits<const T*> : public TValueTraitsBase<const T*> {
         static const size_t NBITS_SIZE_T = sizeof(size_t)*8;
         static const size_t SIGNIFICANT_BITS = ((size_t)1 << (NBITS_SIZE_T - 2)) - 1;
     public:
@@ -266,7 +266,7 @@ namespace NLFHT {
         }
 
         static bool IsReserved(TValue p) {
-            return (size_t)p <= (size_t)TReserved<TValue, 3>::Value();
+            return (size_t)p <= (size_t)Reserved<TValue, 3>::Value();
         }
         static bool IsGood(TValue p) {
             return ((size_t)p & SIGNIFICANT_BITS) == (size_t)p;
@@ -274,7 +274,7 @@ namespace NLFHT {
     };
 
     template <>
-    class TValueTraits<size_t> : public TValueTraitsBase<size_t> {
+    class ValueTraits<size_t> : public TValueTraitsBase<size_t> {
         static const size_t NBITS_SIZE_T = sizeof(size_t)*8;
         static const size_t COPYING_FLAG = ((size_t)1) << (NBITS_SIZE_T - 1);
         static const size_t SIGNIFICANT_BITS = (size_t(-1)) & ~COPYING_FLAG;
@@ -293,7 +293,7 @@ namespace NLFHT {
         }
 
         static bool IsReserved(TValue x) {
-            return x >= TReserved<TValue, 0>::Value();
+            return x >= Reserved<TValue, 0>::Value();
         }
         static bool IsGood(TValue p) {
             return (p & SIGNIFICANT_BITS) == p;
@@ -328,11 +328,11 @@ namespace NLFHT {
         }
 
         FORCED_INLINE bool operator()(const Val& lft, const Val& rgh) {
-            if (EXPECT_FALSE(TValueTraits<Val>::IsCopying(lft) != TValueTraits<Val>::IsCopying(rgh)))
+            if (EXPECT_FALSE(ValueTraits<Val>::IsCopying(lft) != ValueTraits<Val>::IsCopying(rgh)))
                 return false;
-            const Val lftPure = TValueTraits<Val>::PureValue(lft);
-            const Val rghPure = TValueTraits<Val>::PureValue(rgh);
-            if (EXPECT_FALSE(TValueTraits<Val>::IsReserved(lftPure) || TValueTraits<Val>::IsReserved(rghPure)))
+            const Val lftPure = ValueTraits<Val>::PureValue(lft);
+            const Val rghPure = ValueTraits<Val>::PureValue(rgh);
+            if (EXPECT_FALSE(ValueTraits<Val>::IsReserved(lftPure) || ValueTraits<Val>::IsReserved(rghPure)))
                 return lft == rgh;
             return AreEqual(lft, rgh);
         }
@@ -362,29 +362,29 @@ namespace NLFHT {
     };
 
     template <class T>
-    std::string KeyToString(const typename TKeyTraits<T>::TKey& arg) {
-        if (arg == TKeyTraits<T>::None())
+    std::string KeyToString(const typename KeyTraits<T>::TKey& arg) {
+        if (arg == KeyTraits<T>::None())
             return "NONE";
-        return TAtomicTraits<T>::ToString(arg);
+        return AtomicTraits<T>::ToString(arg);
     }
 
     template <class T>
-    std::string ValueToString(const typename TValueTraits<T>::TValue& arg) {
-        typename TValueTraits<T>::TValue argPure = TValueTraits<T>::PureValue(arg);
+    std::string ValueToString(const typename ValueTraits<T>::TValue& arg) {
+        typename ValueTraits<T>::TValue argPure = ValueTraits<T>::PureValue(arg);
 
         std::stringstream tmp;
-        if (argPure == TValueTraits<T>::None())
+        if (argPure == ValueTraits<T>::None())
             tmp << "NONE";
-        else if (argPure == TValueTraits<T>::Copied())
+        else if (argPure == ValueTraits<T>::Copied())
             tmp << "COPIED";
-        else if (argPure == TValueTraits<T>::Baby())
+        else if (argPure == ValueTraits<T>::Baby())
             tmp << "BABY";
-        else if (argPure == TValueTraits<T>::Deleted())
+        else if (argPure == ValueTraits<T>::Deleted())
             tmp << "DELETED";
         else
-            tmp << TAtomicTraits<T>::ToString(argPure);
+            tmp << AtomicTraits<T>::ToString(argPure);
 
-        if (TValueTraits<T>::IsCopying(arg))
+        if (ValueTraits<T>::IsCopying(arg))
             tmp << "(COPYING)";
         return tmp.str();
     }

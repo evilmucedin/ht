@@ -18,3 +18,4 @@ table.h
 time_hash_map.cpp
 time_hash_map.o
 transp_holder.h
+atomic_traits.h

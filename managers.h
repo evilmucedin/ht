@@ -29,7 +29,8 @@ namespace NLFHT {
         }
 
         // JUST TO DEBUG
-        std::string ToString() {
+        std::string ToString()
+        {
             return "";
         }
     private:
@@ -39,42 +40,46 @@ namespace NLFHT {
     template <class Prt>
     class DefaultKeyManager : public BaseManager<Prt> {
     public:
-        typedef Prt TParent;
-        typedef typename TParent::TKey TKey;
+        typedef Prt Parent;
+        typedef typename Parent::TKey Key;
 
-        DefaultKeyManager(TParent* parent)
+        DefaultKeyManager(Parent* parent)
             : BaseManager<Prt>(parent)
         {
         }
 
-        TKey CloneAndRef(TKey k) {
+        Key CloneAndRef(Key k)
+        {
             return k;
         }
 
-        void UnRef(TKey, size_t = 1) {
+        void UnRef(Key, size_t = 1)
+        {
         }
     };
 
     template <class Prt>
-    class DefaultValueManager : public BaseManager<Prt> {
+    class DefaultValueManager : public BaseManager<Prt>
+    {
     public:
         typedef Prt TParent;
-        typedef typename TParent::TValue TValue;
+        typedef typename TParent::TValue Value;
 
         DefaultValueManager(TParent* parent)
             : BaseManager<Prt>(parent)
         {
         }
 
-        TValue CloneAndRef(TValue v) {
+        Value CloneAndRef(Value v)
+        {
             return v;
         }
 
-        void ReadAndRef(TValue& dest, typename TValueTraits<TValue>::TAtomicValue const& src) {
-            dest = TValueTraits<TValue>::PureValue(TValue(src));
+        void ReadAndRef(Value& dest, typename ValueTraits<Value>::TAtomicValue const& src) {
+            dest = ValueTraits<Value>::PureValue(Value(src));
         }
 
-        void UnRef(TValue, size_t = 1) {
+        void UnRef(Value, size_t = 1) {
         }
     };
 }

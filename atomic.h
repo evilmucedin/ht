@@ -346,18 +346,18 @@ inline size_t CurrentThreadId()
 #define DEFAULT_ALLOCATOR(T) __STL_DEFAULT_ALLOCATOR(T)
 
 template <unsigned N, class T>
-struct TClp2Helper
+struct Clp2Helper
 {
     static inline T Calc(T t) throw ()
     {
-        const T prev = TClp2Helper<N / 2, T>::Calc(t);
+        const T prev = Clp2Helper<N / 2, T>::Calc(t);
 
         return prev | (prev >> N);
     }
 };
 
 template <class T>
-struct TClp2Helper<0u, T>
+struct Clp2Helper<0u, T>
 {
     static inline T Calc(T t) throw ()
     {
@@ -368,5 +368,5 @@ struct TClp2Helper<0u, T>
 template <class T>
 static inline T FastClp2(T t) throw ()
 {
-    return 1 + TClp2Helper<sizeof(T) * 4, T>::Calc(t);
+    return 1 + Clp2Helper<sizeof(T) * 4, T>::Calc(t);
 }

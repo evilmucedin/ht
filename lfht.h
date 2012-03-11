@@ -149,8 +149,8 @@ public:
     typedef typename KeyMgr::template TRedirected<Self> TKeyManager;
     typedef typename ValMgr::template TRedirected<Self> TValueManager;
 
-    typedef NLFHT::TKeyTraits<TKey> THTKeyTraits;
-    typedef NLFHT::TValueTraits<TValue> THTValueTraits;
+    typedef NLFHT::KeyTraits<TKey> THTKeyTraits;
+    typedef NLFHT::ValueTraits<TValue> THTValueTraits;
 
     typedef typename NLFHT::THashFunc<TKey, THashFn> THashFunc;
     typedef typename NLFHT::TKeysAreEqual<TKey, TKeyComparator> TKeysAreEqual;
