@@ -40,8 +40,8 @@ namespace NLFHT {
         typedef typename Prt::Self Parent;
         typedef Table Self;
 
-        typedef typename Parent::TKey TKey;
-        typedef typename Parent::TValue TValue;
+        typedef typename Parent::Key TKey;
+        typedef typename Parent::Value TValue;
 
         typedef typename KeyTraits<TKey>::AtomicKey AtomicKey;
         typedef typename ValueTraits<TValue>::AtomicValue AtomicValue;

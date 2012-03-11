@@ -322,9 +322,9 @@ namespace NLFHT
     };
 
     template <class Key, class KeyCmp>
-    class TKeysAreEqual {
+    class KeysAreEqual {
     public:
-        TKeysAreEqual(const KeyCmp& areEqual)
+        KeysAreEqual(const KeyCmp& areEqual)
             : AreEqual(areEqual)
         {
         }
@@ -341,9 +341,9 @@ namespace NLFHT
     };
 
     template <class Val, class ValCmp>
-    class TValuesAreEqual {
+    class ValuesAreEqual {
     public:
-        TValuesAreEqual(const ValCmp& areEqual)
+        ValuesAreEqual(const ValCmp& areEqual)
             : AreEqual(areEqual)
         {
         }
@@ -367,9 +367,9 @@ namespace NLFHT
     };
 
     template <class Key, class HashFn>
-    class THashFunc {
+    class HashFunc {
     public:
-        THashFunc(const HashFn& hash)
+        HashFunc(const HashFn& hash)
             : Hash(hash)
         {
         }
@@ -383,14 +383,16 @@ namespace NLFHT
     };
 
     template <class T>
-    std::string KeyToString(const typename KeyTraits<T>::TKey& arg) {
+    std::string KeyToString(const typename KeyTraits<T>::TKey& arg)
+    {
         if (arg == KeyTraits<T>::None())
             return "NONE";
         return AtomicTraits<T>::ToString(arg);
     }
 
     template <class T>
-    std::string ValueToString(const typename ValueTraits<T>::TValue& arg) {
+    std::string ValueToString(const typename ValueTraits<T>::TValue& arg)
+    {
         typename ValueTraits<T>::TValue argPure = ValueTraits<T>::PureValue(arg);
 
         std::stringstream tmp;

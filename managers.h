@@ -41,7 +41,7 @@ namespace NLFHT {
     class DefaultKeyManager : public BaseManager<Prt> {
     public:
         typedef Prt Parent;
-        typedef typename Parent::TKey Key;
+        typedef typename Parent::Key Key;
 
         DefaultKeyManager(Parent* parent)
             : BaseManager<Prt>(parent)
@@ -62,10 +62,10 @@ namespace NLFHT {
     class DefaultValueManager : public BaseManager<Prt>
     {
     public:
-        typedef Prt TParent;
-        typedef typename TParent::TValue Value;
+        typedef Prt Parent;
+        typedef typename Parent::Value Value;
 
-        DefaultValueManager(TParent* parent)
+        DefaultValueManager(Parent* parent)
             : BaseManager<Prt>(parent)
         {
         }
