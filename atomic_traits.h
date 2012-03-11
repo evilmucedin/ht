@@ -4,13 +4,15 @@
 
 #include <string>
 
-namespace NLFHT {
+namespace NLFHT
+{
     // const T* CAS
 
     using ::AtomicCas;
 
     template <class T>
-    static bool AtomicCas(const T* volatile* target, const T* exchange, const T* compare) {
+    static bool AtomicCas(const T* volatile* target, const T* exchange, const T* compare)
+    {
         return ::AtomicCas((Atomic*)target, (AtomicBase)exchange, (AtomicBase)compare);
     }
 
@@ -26,7 +28,8 @@ namespace NLFHT {
     class ValueTraits;
 
     template<class T, size_t N>
-    struct Reserved {
+    struct Reserved
+    {
         static T Value();
     };
 
@@ -136,81 +139,92 @@ namespace NLFHT {
     // base traits of each class, that can be accessed atomically
 
     template <class T>
-    class TAtomicTraitsBase {
+    class AtomicTraitsBase
+    {
     public:
-        typedef T TType;
-        typedef volatile T TAtomicType;
+        typedef T Type;
+        typedef volatile T AtomicType;
     };
 
     template <class T>
-    class AtomicTraits<T*> : public TAtomicTraitsBase<T*> {
+    class AtomicTraits<T*> : public AtomicTraitsBase<T*>
+    {
     public:
-        typedef typename TAtomicTraitsBase<T*>::TType TType;
-        typedef typename TAtomicTraitsBase<T*>::TAtomicType TAtomicType;
+        typedef typename AtomicTraitsBase<T*>::Type Type;
+        typedef typename AtomicTraitsBase<T*>::AtomicType AtomicType;
 
-        static bool CompareAndSet(TAtomicType& dest, TType newValue, TType oldValue) {
+        static bool CompareAndSet(AtomicType& dest, Type newValue, Type oldValue)
+        {
              return AtomicCas(&dest, newValue, oldValue);
         }
 
-        static std::string ToString(const TType& t) {
+        static std::string ToString(const Type& t)
+        {
             return ::ToString<size_t>((size_t)t);
         }
     };
 
     template <>
-    class AtomicTraits<size_t> : public TAtomicTraitsBase<size_t> {
+    class AtomicTraits<size_t> : public AtomicTraitsBase<size_t> {
     public:
-        static bool CompareAndSet(TAtomicType& dest, TType newValue, TType oldValue) {
+        static bool CompareAndSet(AtomicType& dest, Type newValue, Type oldValue)
+        {
             return ::AtomicCas((Atomic*)&dest, newValue, oldValue);
         }
 
-        static std::string ToString(const TType& t) {
+        static std::string ToString(const Type& t)
+        {
             return ::ToString<size_t>(t);
         }
     };
 
     template <>
-    std::string AtomicTraits<const char*>::ToString(const AtomicTraits<const char*>::TType& s);
+    std::string AtomicTraits<const char*>::ToString(const AtomicTraits<const char*>::Type& s);
 
     template <class T>
-    class TKeyTraitsBase : public AtomicTraits<T> {
+    class KeyTraitsBase : public AtomicTraits<T>
+    {
     public:
-        typedef typename AtomicTraits<T>::TType TKey;
-        typedef typename AtomicTraits<T>::TAtomicType TAtomicKey;
+        typedef typename AtomicTraits<T>::Type Key;
+        typedef typename AtomicTraits<T>::AtomicType AtomicKey;
 
-        inline static T None() {
+        inline static T None()
+        {
             return Reserved<T, 0>::Value();
         }
 
-        inline static bool IsReserved(TKey k) {
+        inline static bool IsReserved(Key k)
+        {
             return k == None();
         }
     };
 
     template <class T>
-    class KeyTraits<const T*> : public TKeyTraitsBase<const T*> {
+    class KeyTraits<const T*> : public KeyTraitsBase<const T*>
+    {
     public:
-        typedef typename TKeyTraitsBase<const T*>::TKey TKey;
-        typedef typename TKeyTraitsBase<const T*>::TAtomicKey TAtomicKey;
+        typedef typename KeyTraitsBase<const T*>::Key Key;
+        typedef typename KeyTraitsBase<const T*>::AtomicKey AtomicKey;
     };
 
     template <>
-    class KeyTraits<const char*> : public TKeyTraitsBase<const char*> {
+    class KeyTraits<const char*> : public KeyTraitsBase<const char*> {
     public:
     };
 
     template <>
-    class KeyTraits<size_t> : public TKeyTraitsBase<size_t> {
+    class KeyTraits<size_t> : public KeyTraitsBase<size_t> {
     public:
     };
 
     // value specific traits
 
     template <class T>
-    class TValueTraitsBase : public AtomicTraits<T> {
+    class ValueTraitsBase : public AtomicTraits<T>
+    {
     public:
-        typedef typename AtomicTraits<T>::TType TValue;
-        typedef typename AtomicTraits<T>::TAtomicType TAtomicValue;
+        typedef typename AtomicTraits<T>::Type Value;
+        typedef typename AtomicTraits<T>::AtomicType AtomicValue;
 
         inline static T None() {
             return Reserved<T, 0>::Value();
@@ -231,23 +245,23 @@ namespace NLFHT {
     // see http://support.amd.com/us/Embedded_TechDocs/24593.pdf
     // bit 62 not equal to bit 63 means state is COPYING
     template <class T>
-    class ValueTraits<const T*> : public TValueTraitsBase<const T*> {
+    class ValueTraits<const T*> : public ValueTraitsBase<const T*> {
         static const size_t NBITS_SIZE_T = sizeof(size_t)*8;
         static const size_t SIGNIFICANT_BITS = ((size_t)1 << (NBITS_SIZE_T - 2)) - 1;
     public:
-        typedef typename TValueTraitsBase<const T*>::TValue TValue;
-        typedef typename TValueTraitsBase<const T*>::TAtomicValue TAtomicValue;
+        typedef typename ValueTraitsBase<const T*>::Value Value;
+        typedef typename ValueTraitsBase<const T*>::AtomicValue AtomicValue;
 
-        static TValue PureValue(TValue p) {
+        static Value PureValue(Value p) {
             size_t& x = (size_t&)p;
             size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
             if (b62)
-                return (TValue)(x | ~(SIGNIFICANT_BITS));
+                return (Value)(x | ~(SIGNIFICANT_BITS));
             else
-                return (TValue)(x & SIGNIFICANT_BITS);
+                return (Value)(x & SIGNIFICANT_BITS);
         }
 
-        static bool IsCopying(TValue p) {
+        static bool IsCopying(Value p) {
             // hope that optimizer will make this code much better
             size_t& x = (size_t&)p;
             size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
@@ -255,7 +269,7 @@ namespace NLFHT {
             return (b63 != b62);
         }
 
-        static void SetCopying(TAtomicValue& p) {
+        static void SetCopying(AtomicValue& p) {
             Atomic& x = (Atomic&)p;
             AtomicBase b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
 
@@ -265,37 +279,44 @@ namespace NLFHT {
                 AtomicAnd(x, ~(1UL << (NBITS_SIZE_T - 1)));
         }
 
-        static bool IsReserved(TValue p) {
-            return (size_t)p <= (size_t)Reserved<TValue, 3>::Value();
+        static bool IsReserved(Value p)
+        {
+            return (size_t)p <= (size_t)Reserved<Value, 3>::Value();
         }
-        static bool IsGood(TValue p) {
+        static bool IsGood(Value p)
+        {
             return ((size_t)p & SIGNIFICANT_BITS) == (size_t)p;
         }
     };
 
     template <>
-    class ValueTraits<size_t> : public TValueTraitsBase<size_t> {
+    class ValueTraits<size_t> : public ValueTraitsBase<size_t> {
         static const size_t NBITS_SIZE_T = sizeof(size_t)*8;
         static const size_t COPYING_FLAG = ((size_t)1) << (NBITS_SIZE_T - 1);
         static const size_t SIGNIFICANT_BITS = (size_t(-1)) & ~COPYING_FLAG;
 
     public:
-        static TValue PureValue(TValue x) {
+        static Value PureValue(Value x)
+        {
             return x & SIGNIFICANT_BITS;
         }
 
-        static bool IsCopying(TValue x) {
+        static bool IsCopying(Value x)
+        {
             return x & COPYING_FLAG;
         }
 
-        static void SetCopying(TAtomicValue& x) {
+        static void SetCopying(AtomicValue& x)
+        {
             AtomicOr((Atomic&)x, COPYING_FLAG);
         }
 
-        static bool IsReserved(TValue x) {
-            return x >= Reserved<TValue, 0>::Value();
+        static bool IsReserved(Value x)
+        {
+            return x >= Reserved<Value, 0>::Value();
         }
-        static bool IsGood(TValue p) {
+        static bool IsGood(Value p)
+        {
             return (p & SIGNIFICANT_BITS) == p;
         }
     };

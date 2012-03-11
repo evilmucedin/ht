@@ -75,7 +75,7 @@ namespace NLFHT {
             return v;
         }
 
-        void ReadAndRef(Value& dest, typename ValueTraits<Value>::TAtomicValue const& src) {
+        void ReadAndRef(Value& dest, typename ValueTraits<Value>::AtomicValue const& src) {
             dest = ValueTraits<Value>::PureValue(Value(src));
         }
 

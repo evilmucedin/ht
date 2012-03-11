@@ -13,8 +13,8 @@ namespace NLFHT {
     template <class K, class V>
     struct Entry
     {
-        typedef typename KeyTraits<K>::TAtomicKey AtomicKey;
-        typedef typename ValueTraits<V>::TAtomicValue AtomicValue;
+        typedef typename KeyTraits<K>::AtomicKey AtomicKey;
+        typedef typename ValueTraits<V>::AtomicValue AtomicValue;
 
         AtomicKey m_Key;
         AtomicValue m_Value;
@@ -30,7 +30,8 @@ namespace NLFHT {
     class TableConstIterator;
 
     template <class Prt>
-    class Table : NonCopyable {
+    class Table : NonCopyable
+    {
     public:
         friend class Prt::Self;
         friend class TableConstIterator<Table>;
@@ -42,8 +43,8 @@ namespace NLFHT {
         typedef typename Parent::TKey TKey;
         typedef typename Parent::TValue TValue;
 
-        typedef typename KeyTraits<TKey>::TAtomicKey AtomicKey;
-        typedef typename ValueTraits<TValue>::TAtomicValue AtomicValue;
+        typedef typename KeyTraits<TKey>::AtomicKey AtomicKey;
+        typedef typename ValueTraits<TValue>::AtomicValue AtomicValue;
 
         typedef Entry<TKey, TValue> EntryT;
         typedef Table<Parent> TableT;
