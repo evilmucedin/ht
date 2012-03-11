@@ -182,7 +182,7 @@ namespace NLFHT {
             return TReserved<T, 0>::Value();
         }
 
-        inline static bool IsReserved(const TKey& k) {
+        inline static bool IsReserved(TKey k) {
             return k == None();
         }
     };
@@ -238,7 +238,7 @@ namespace NLFHT {
         typedef typename TValueTraitsBase<const T*>::TValue TValue;
         typedef typename TValueTraitsBase<const T*>::TAtomicValue TAtomicValue;
 
-        static TValue PureValue(const TValue& p) {
+        static TValue PureValue(TValue p) {
             size_t& x = (size_t&)p;
             size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
             if (b62)
@@ -247,7 +247,7 @@ namespace NLFHT {
                 return (TValue)(x & SIGNIFICANT_BITS);
         }
 
-        static bool IsCopying(const TValue& p) {
+        static bool IsCopying(TValue p) {
             // hope that optimizer will make this code much better
             size_t& x = (size_t&)p;
             size_t b62 = (x >> (NBITS_SIZE_T - 2)) & 1;
@@ -265,10 +265,10 @@ namespace NLFHT {
                 AtomicAnd(x, ~(1UL << (NBITS_SIZE_T - 1)));
         }
 
-        static bool IsReserved(const TValue& p) {
+        static bool IsReserved(TValue p) {
             return (size_t)p <= (size_t)TReserved<TValue, 3>::Value();
         }
-        static bool IsGood(const TValue& p) {
+        static bool IsGood(TValue p) {
             return ((size_t)p & SIGNIFICANT_BITS) == (size_t)p;
         }
     };
@@ -280,11 +280,11 @@ namespace NLFHT {
         static const size_t SIGNIFICANT_BITS = (size_t(-1)) & ~COPYING_FLAG;
 
     public:
-        static TValue PureValue(const TValue& x) {
+        static TValue PureValue(TValue x) {
             return x & SIGNIFICANT_BITS;
         }
 
-        static bool IsCopying(const TValue& x) {
+        static bool IsCopying(TValue x) {
             return x & COPYING_FLAG;
         }
 
@@ -292,10 +292,10 @@ namespace NLFHT {
             AtomicOr((Atomic&)x, COPYING_FLAG);
         }
 
-        static bool IsReserved(const TValue& x) {
-            return x <= TReserved<TValue, 3>::Value();
+        static bool IsReserved(TValue x) {
+            return x >= TReserved<TValue, 0>::Value();
         }
-        static bool IsGood(const TValue& p) {
+        static bool IsGood(TValue p) {
             return (p & SIGNIFICANT_BITS) == p;
         }
     };

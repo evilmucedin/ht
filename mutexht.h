@@ -1,6 +1,6 @@
 #pragma once
 
-#include <hash_map>
+#include "unordered_map"
 
 #include "atomic.h"
 
@@ -8,7 +8,7 @@ template<typename Key, typename Value>
 class MutexHashTable
 {
 private:
-    __gnu_cxx::hash_map<Key, Value> m_data;
+    std::unordered_map<Key, Value> m_data;
     mutable Mutex m_mutex;
 
 public:

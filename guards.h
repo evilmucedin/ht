@@ -1,27 +1,36 @@
 #pragma once
 
+#include <iostream>
+
 #include "atomic.h"
 #include "unordered_map"
 
+#include "transp_holder.h"
+
 namespace NLFHT {
-    class TGuard;
+    class TBaseGuard;
 
     class TGuardable {
     public:
-        virtual TGuard* AcquireGuard() = 0;
+        virtual TBaseGuard* AcquireGuard() = 0;
     };
 
-    class TGuardManager;
+    class TBaseGuardManager;
 
-    class TGuard : NonCopyable {
+    class TBaseGuard : NonCopyable
+    {
     public:
-        friend class TGuardManager;
+        friend class TBaseGuardManager;
         friend class TThreadGuardTable;
 
     public:
-        TGuard(TGuardManager* parent);
+        TBaseGuard(TBaseGuardManager* parent);
+        virtual ~TBaseGuard();
 
         void Release();
+        TBaseGuard* GetNext() {
+            return Next;
+        }
 
         void GuardTable(AtomicBase tableNumber) {
             GuardedTable = tableNumber;
@@ -83,7 +92,7 @@ namespace NLFHT {
         }
 
         // JUST TO DEBUG
-        std::string ToString();
+        virtual std::string ToString();
 
         size_t GetThreadId() const {
             return ThreadId;
@@ -93,13 +102,10 @@ namespace NLFHT {
         void Init();
 
     private:
-        static const AtomicBase NO_OWNER;
         static const AtomicBase NO_TABLE;
 
-        TGuard* Next;
-        TGuardManager* Parent;
-
-        Atomic Owner;
+        TBaseGuard* Next;
+        TBaseGuardManager* Parent;
 
         volatile size_t GuardedTable;
         volatile bool PTDLock;
@@ -116,7 +122,7 @@ namespace NLFHT {
         Atomic AliveCnt;
         Atomic KeyCnt;
 
-        size_t ThreadId;
+        volatile size_t ThreadId;
     };
 
     class TThreadGuardTable : NonCopyable {
@@ -124,8 +130,8 @@ namespace NLFHT {
         static void RegisterTable(TGuardable* pTable);
         static void ForgetTable(TGuardable* pTable);
 
-        static TGuard* ForTable(TGuardable* pTable) {
-            VERIFY(GuardTable, "Register in table\n");
+        static TBaseGuard* ForTable(TGuardable* pTable) {
+            assert(GuardTable);
             TGuardTable::const_iterator toTable = GuardTable->find(pTable);
             assert(toTable != GuardTable->end());
             return toTable->second;
@@ -133,18 +139,20 @@ namespace NLFHT {
     private:
         // yhash_map has too big constant
         // more specialized hash_map should be used here
-        typedef std::unordered_map<TGuardable*, TGuard*> TGuardTable;
+        typedef std::unordered_map<TGuardable*, TBaseGuard*> TGuardTable;
         static NLFHT_THREAD_LOCAL TGuardTable* GuardTable;
     };
 
-    class TGuardManager {
+    class TBaseGuardManager {
     public:
-        friend class TGuard;
+        friend class TBaseGuard;
 
-        TGuardManager();
-        ~TGuardManager();
+        TBaseGuardManager();
 
-        TGuard* AcquireGuard(size_t owner);
+        TBaseGuard* GetHead() {
+            return Head;
+        }
+        TBaseGuard* AcquireGuard();
 
         size_t GetFirstGuardedTable();
 
@@ -163,13 +171,80 @@ namespace NLFHT {
         std::string ToString();
 
     private:
-        TGuard *volatile Head;
+        class THeadHolder : public TVolatilePointerWrapper<TBaseGuard> {
+        public:
+            THeadHolder(TBaseGuardManager* parent)
+                : Parent(parent)
+            {
+            }
+            inline THeadHolder& operator= (TBaseGuard* ptr) {
+                Set(ptr);
+                return *this;
+            }
+
+            ~THeadHolder() {
+                TBaseGuard* current = Get();
+                while (current) {
+                    TBaseGuard* tmp = current;
+                    current = current->Next;
+                    delete tmp;
+                }
+#ifndef NDEBUG
+                if (Parent->GuardsCreated != Parent->GuardsDeleted) {
+                    std::cerr << "GuardsCreated " << Parent->GuardsCreated << '\n'
+                         << "GuardsDeleted " << Parent->GuardsDeleted << '\n';
+                    assert(false && !"Some guard lost");
+                }
+#endif
+            }
+        private:
+            TBaseGuardManager* Parent;
+        };
+
+        THeadHolder Head;
 
         Atomic AliveCnt;
         Atomic KeyCnt;
 
-    private:
-        TGuard* CreateGuard(AtomicBase owner);
-    };
-};
+#ifndef NDEBUG
+        Atomic GuardsCreated;
+        Atomic GuardsDeleted;
+#endif
 
+    private:
+        TBaseGuard* CreateGuard();
+        virtual TBaseGuard* NewGuard() {
+            return new TBaseGuard(this);
+        }
+    };
+
+    template <class Prt>
+    class TGuard : public TBaseGuard {
+    public:
+        typedef Prt TParent;
+        typedef typename TParent::TGuardManager TGuardManager;
+
+        TGuard(TGuardManager* parent)
+            : TBaseGuard(parent)
+        {
+        }
+    };
+
+    template <class Prt>
+    class TGuardManager : public TBaseGuardManager {
+    public:
+        typedef Prt TParent;
+        typedef typename TParent::TGuard TGuard;
+
+        TGuardManager(TParent* parent)
+            : Parent(parent)
+        {
+        }
+    private:
+        TParent* Parent;
+    private:
+        virtual TBaseGuard* NewGuard() {
+            return new TGuard(this);
+        }
+    };
+}

@@ -25,28 +25,31 @@ namespace NLFHT {
         }
     };
 
-    template <class Owner>
-    class TConstIterator;
+    template <class Prt, bool IterateAllKeys = false>
+    class TTableConstIterator;
 
-    template <class Owner>
+    template <class Prt>
     class TTable : NonCopyable {
     public:
-        friend class Owner::TSelf;
-        friend class TConstIterator<Owner>;
+        friend class Prt::TSelf;
+        friend class TTableConstIterator<TTable>;
+        friend class TTableConstIterator<TTable, true>;
 
-        typedef typename Owner::TSelf TOwner;
+        typedef typename Prt::TSelf TParent;
+        typedef TTable TSelf;
 
-        typedef typename TOwner::TKey TKey;
-        typedef typename TOwner::TValue TValue;
+        typedef typename TParent::TKey TKey;
+        typedef typename TParent::TValue TValue;
 
         typedef typename TKeyTraits<TKey>::TAtomicKey TAtomicKey;
         typedef typename TValueTraits<TValue>::TAtomicValue TAtomicValue;
 
         typedef TEntry<TKey, TValue> TEntryT;
-        typedef TTable<TOwner> TTableT;
-        typedef TConstIterator<TOwner> TConstIteratorT;
-        typedef typename TOwner::TPutCondition TPutCondition;
-        typedef typename TOwner::TSearchHint TSearchHint;
+        typedef TTable<TParent> TTableT;
+        typedef TTableConstIterator<TSelf> TConstIteratorT;
+        typedef TTableConstIterator<TSelf, true> TAllKeysConstIterator;
+        typedef typename TParent::TPutCondition TPutCondition;
+        typedef typename TParent::TSearchHint TSearchHint;
 
         enum EResult {
             FULL_TABLE,
@@ -58,8 +61,8 @@ namespace NLFHT {
         };
 
     public:
-        TTable(TOwner* parent, size_t size)
-            : Size( RoundToNext2Power(size) )
+        TTable(TParent* parent, size_t size)
+            : Size( FastClp2(size) )
             , SizeMinusOne(Size - 1)
             , MinProbeCnt(Size)
             , IsFullFlag(false)
@@ -80,12 +83,9 @@ namespace NLFHT {
         }
 
         ~TTable() {
-            for (size_t i = 0; i < Data.size(); ++i) {
-                if (!ValueIsCopied(PureValue((TValue)Data[i].Value)))
-                    UnRefKey((TKey)Data[i].Key);
-                UnRefValue(PureValue((TValue)Data[i].Value));
-            }
-
+#ifdef TRACE
+            Trace(Cerr, "TTable destructor called\n");
+#endif
 #ifndef NDEBUG
             AtomicIncrement(Parent->TablesDeleted);
 #endif
@@ -95,28 +95,36 @@ namespace NLFHT {
             return IsFullFlag;
         }
 
-        inline TTableT* GetNext() {
+        // getters and setters
+        inline TTableT* GetNext() const {
             return Next;
         }
+        inline TTableT* GetNextToDelete() const {
+            return NextToDelete;
+        }
 
-        void CreateNext();
+// table access methods
+        inline bool GetEntry(TEntryT* entry, TValue& value);
+        bool Get(TKey key, size_t hashValue, TValue& value, TSearchHint* hint);
 
-        template<bool CheckFull>
-        TEntryT* LookUp(const TKey& key, size_t hash, TKey& foundKey);
-        void Copy(TEntryT* entry);
-
-        bool GetEntry(TEntryT* entry, TValue& value);
-        inline bool Get(const TKey& key, size_t hashValue, TValue& value, TSearchHint* hint);
-
-        EResult FetchEntry(const TKey& key, TEntryT* entry,
+        EResult FetchEntry(TKey key, TEntryT* entry,
                            bool thereWasKey, bool& keyIsInstalled, const TPutCondition& cond);
-        EResult PutEntry(TEntryT* entry, const TValue& value,
+        EResult PutEntry(TEntryT* entry, TValue value,
                          const TPutCondition& cond, bool updateAliveCnt);
-        EResult Put(const TKey& key, const TValue& value,
+        EResult Put(TKey key, TValue value,
                     const TPutCondition& cond, bool& keyInstalled, bool updateAliveCnt = true);
+
+        TConstIteratorT Begin() const {
+            return TConstIteratorT(this);
+        }
+        TAllKeysConstIterator BeginAllKeys() const {
+            return TAllKeysConstIterator(this);
+        }
 
         // JUST TO DEBUG
         void Print(std::ostream& ostr, bool compact = false);
+
+        size_t AllocSize;
 
     private:
         const size_t Size;
@@ -131,13 +139,18 @@ namespace NLFHT {
         typedef std::vector<TEntryT> TData;
         TData Data;
 
-        TOwner* Parent;
+        TParent* Parent;
         TTableT *volatile Next;
         TTableT *volatile NextToDelete;
 
         SpinLock Lock;
 
     private:
+        template<bool CheckFull>
+        TEntryT* LookUp(TKey key, size_t hash, TKey& foundKey);
+        void Copy(TEntryT* entry);
+
+        void CreateNext();
         void PrepareToDelete();
         void DoCopyTask();
 
@@ -158,54 +171,54 @@ namespace NLFHT {
             return TValueTraits<TValue>::Baby();
         }
 
-        FORCED_INLINE bool ValueIsNone(const TValue& value) {
+        FORCED_INLINE bool ValueIsNone(TValue value) {
             return ValuesAreEqual(value, NoneValue());
         }
-        FORCED_INLINE bool ValueIsDeleted(const TValue& value) {
+        FORCED_INLINE bool ValueIsDeleted(TValue value) {
             return ValuesAreEqual(value, DeletedValue());
         }
-        FORCED_INLINE bool ValueIsBaby(const TValue& value) {
+        FORCED_INLINE bool ValueIsBaby(TValue value) {
             return ValuesAreEqual(value, BabyValue());
         }
-        FORCED_INLINE bool ValueIsCopied(const TValue& value) {
+        FORCED_INLINE bool ValueIsCopied(TValue value) {
             return ValuesAreEqual(value, CopiedValue());
         }
 
-        FORCED_INLINE bool KeyIsNone(const TKey& key) {
+        FORCED_INLINE bool KeyIsNone(TKey key) {
             return KeysAreEqual(key, NoneKey());
         }
-        FORCED_INLINE bool KeysAreEqual(const TKey& lft, const TKey& rgh) {
+        FORCED_INLINE bool KeysAreEqual(TKey lft, TKey rgh) const {
             return Parent->KeysAreEqual(lft, rgh);
         }
-        FORCED_INLINE bool ValuesAreEqual(const TValue& lft, const TValue& rgh) {
+        FORCED_INLINE bool ValuesAreEqual(TValue lft, TValue rgh) const {
             return Parent->ValuesAreEqual(lft, rgh);
         }
 
-        inline static bool IsCopying(const TValue& value) {
+        inline static bool IsCopying(TValue value) {
             return TValueTraits<TValue>::IsCopying(value);
         }
         inline static void SetCopying(TAtomicValue& value) {
             TValueTraits<TValue>::SetCopying(value);
         }
-        inline static TValue PureValue(const TValue& value) {
+        inline static TValue PureValue(TValue value) {
             return TValueTraits<TValue>::PureValue(value);
         }
 
-        inline bool KeysCompareAndSet(TAtomicKey& key, const TKey& newKey, const TKey& oldKey) {
+        inline bool KeysCompareAndSet(TAtomicKey& key, TKey newKey, TKey oldKey) {
             return TKeyTraits<TKey>::CompareAndSet(key, newKey, oldKey);
         }
-        inline bool ValuesCompareAndSet(TAtomicValue& value, const TValue& newValue, const TValue& oldValue) {
+        inline bool ValuesCompareAndSet(TAtomicValue& value, TValue newValue, TValue oldValue) {
             return TValueTraits<TValue>::CompareAndSet(value, newValue, oldValue);
         }
 
-        inline void UnRefKey(const TKey& key, size_t cnt = 1) {
-            Parent->KeyManager->UnRef(key, cnt);
+        inline void UnRefKey(TKey key, size_t cnt = 1) {
+            Parent->KeyManager.UnRef(key, cnt);
         }
         inline void ReadValueAndRef(TValue& value, const TAtomicValue& atomicValue) {
-            Parent->ValueManager->ReadAndRef(value, atomicValue);
+            Parent->ValueManager.ReadAndRef(value, atomicValue);
         }
-        inline void UnRefValue(const TValue& value, size_t cnt = 1) {
-            Parent->ValueManager->UnRef(value, cnt);
+        inline void UnRefValue(TValue value, size_t cnt = 1) {
+            Parent->ValueManager.UnRef(value, cnt);
         }
 
         // guards wrappers
@@ -249,79 +262,98 @@ namespace NLFHT {
     };
 
     // NOT thread-safe iterator, use for moments, when only one thread works with table
-    template <class Owner>
-    class TConstIterator {
+    template <class Prt, bool IterateAllKeys>
+    class TTableConstIterator {
     public:
-        friend class Owner::TSelf;
+        friend class Prt::TSelf;
 
-        typedef typename Owner::TSelf TOwner;
+        typedef typename Prt::TSelf TParent;
 
-        typedef typename TOwner::TKey TKey;
-        typedef typename TOwner::TValue TValue;
+        typedef typename TParent::TKey TKey;
+        typedef typename TParent::TValue TValue;
+        typedef typename TParent::TAtomicKey TAtomicKey;
+        typedef typename TParent::TAtomicValue TAtomicValue;
 
-        typedef TTable<TOwner> TTableT;
         typedef TEntry<TKey, TValue> TEntryT;
-        typedef TConstIterator<TOwner> TConstIteratorT;
 
-        TKey Key() const {
-            return Table->Data[Index].Key;
+        inline TKey Key() const {
+            return Parent->Data[Index].Key;
         }
 
-        TValue Value() const {
-            return Table->Data[Index].Value;
+        inline TValue Value() const {
+            return Parent->Data[Index].Value;
         }
 
-        TConstIteratorT& operator ++ (int) {
+        inline const TParent* GetParent() const {
+            return Parent;
+        }
+
+        TTableConstIterator& operator ++ (int) {
             NextEntry();
             return *this;
         }
-        TConstIteratorT& operator ++ () {
+        TTableConstIterator& operator ++ () {
             NextEntry();
             return *this;
         }
 
         bool IsValid() const {
-            return Table;
+            return Index < Parent->Size;
         }
 
-        TConstIterator(const TConstIterator& it)
-            : Table(it.Table)
+        TTableConstIterator(const TTableConstIterator& it)
+            : Parent(it.Parent)
             , Index(it.Index)
         {
         }
 
     private:
-        TTableT* Table;
+        const TParent* Parent;
         size_t Index;
 
-    protected:
-        void NextEntry();
-
     private:
-        TConstIterator(TTableT* table, size_t index) :
-            Table(table),
-            Index(index)
+        TTableConstIterator(const TParent* parent)
+            : Parent(parent)
+            , Index(-1)
         {
+            NextEntry();
+        }
+
+        // if iterator is not valid, should not change iterator public state
+        void NextEntry() {
+            ++Index;
+            for (; Index < Parent->Size; Index++)
+                if (IsValidEntry(Parent->Data[Index]))
+                    break;
+        }
+        bool IsValidEntry(const TEntryT& entry) {
+            const TAtomicKey& key = entry.Key;
+            TValue value = TValueTraits<TValue>::PureValue(entry.Value);
+            if (TKeyTraits<TKey>::IsReserved(key))
+                return false;
+            if (IterateAllKeys)
+                return !ValuesAreEqual(value, TValueTraits<TValue>::Copied());
+            else
+                return !TValueTraits<TValue>::IsCopying(value) &&
+                       !TValueTraits<TValue>::IsReserved(value);
         }
 
         // traits wrappers
-        bool KeysAreEqual(const TKey& lft, const TKey& rgh) {
-            return Table->KeysAreEqual(lft, rgh);
-        }
-        bool ValuesAreEqual(const TValue& lft, const TValue& rgh) {
-            return Table->ValuesAreEqual(lft, rgh);
+        bool ValuesAreEqual(TValue lft, TValue rgh) {
+            return Parent->ValuesAreEqual(lft, rgh);
         }
     };
 
-    template <class Owner>
+    template <class Prt>
     template <bool CheckFull>
-    typename TTable<Owner>::TEntryT*
-    TTable<Owner>::LookUp(const TKey& key, size_t hash, TKey& foundKey) {
+    typename TTable<Prt>::TEntryT*
+    TTable<Prt>::LookUp(TKey key, size_t hash, TKey& foundKey) {
         assert(!KeyIsNone(key));
         OnLookUp();
 
         typename TData::iterator i = Data.begin() + (hash & SizeMinusOne);
         AtomicBase probeCnt = Size;
+
         TEntryT* returnEntry;
         do {
             TEntryT& entry = *i;
@@ -372,8 +404,11 @@ namespace NLFHT {
 
     // try to take value from entry
     // return false, if entry was copied
-    template <class Owner>
-    inline bool TTable<Owner>::GetEntry(TEntryT* entry, TValue& value) {
+    template <class Prt>
+    inline bool TTable<Prt>::GetEntry(TEntryT* entry, TValue& value) {
+#ifdef TRACE
+        Trace(Cerr, "GetEntry in %zd\n", entry - &Data[0]);
+#endif
         if (EXPECT_FALSE(IsCopying(TValue(entry->Value))))
             Copy(entry);
         ReadValueAndRef(value, entry->Value);
@@ -383,8 +418,8 @@ namespace NLFHT {
 
     // tries to take value corresponding to key from table
     // returns false, if key information was copied
-    template <class Owner>
-    inline bool TTable<Owner>::Get(const TKey& key, size_t hashValue, TValue& value, TSearchHint* hint) {
+    template <class Prt>
+    inline bool TTable<Prt>::Get(TKey key, size_t hashValue, TValue& value, TSearchHint*) {
         TKey foundKey;
         TEntryT* entry = LookUp<false>(key, hashValue, foundKey);
 
@@ -405,9 +440,9 @@ namespace NLFHT {
         return result;
     }
 
-    template <class Owner>
-    void TTable<Owner>::CreateNext() {
-        VERIFY(IsFull(), "CreateNext in table when previous table is not full");
+    template <class Prt>
+    void TTable<Prt>::CreateNext() {
+        assert(IsFull());
 
         Lock.Acquire();
         if (Next) {
@@ -419,15 +454,17 @@ namespace NLFHT {
         const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / Parent->Density)));
         ZeroKeyCnt();
 
-        Next = new TTableT(Parent, nextSize);
+        Next = Parent->CreateTable(Parent, nextSize);
+#ifdef TRACE
+        Trace(Cerr, "Table done\n");
+#endif
         CopyTaskSize = Max((size_t)logf(Size) + 1, 2 * (Size / (size_t)(Parent->Density * Next->Size + 1)));
-        // Parent->GuardManager.ResetCounters();
 
         Lock.Release();
     }
 
-    template <class Owner>
-    void TTable<Owner>::Copy(TEntry<TKey, TValue>* entry) {
+    template <class Prt>
+    void TTable<Prt>::Copy(TEntry<TKey, TValue>* entry) {
         OnCopy();
 
         SetCopying(entry->Value);
@@ -435,7 +472,7 @@ namespace NLFHT {
         // cause nobody does CAS on copying values
 
         // remember the value to copy to the next table
-        TValue entryValue(PureValue((TValue)entry->Value));
+        TValue entryValue(PureValue(entry->Value));
 
         if (ValueIsDeleted(entryValue) || ValueIsCopied(entryValue))
             return;
@@ -450,7 +487,7 @@ namespace NLFHT {
 
         TTableT* current = this;
         TKey entryKey = entry->Key;
-        while (!ValueIsCopied(PureValue((TValue)entry->Value))) {
+        while (!ValueIsCopied(PureValue(entry->Value))) {
             if (!current->Next)
                 current->CreateNext();
             TTableT* target = current->Next;
@@ -463,10 +500,15 @@ namespace NLFHT {
         }
     }
 
-    template <class Owner>
-    typename TTable<Owner>::EResult
-    TTable<Owner>::PutEntry(TEntryT* entry, const TValue& value, const TPutCondition& cond, bool updateCnt) {
-        if (EXPECT_FALSE(IsCopying((TValue)entry->Value))) {
+    template <class Prt>
+    typename TTable<Prt>::EResult
+    TTable<Prt>::PutEntry(TEntryT* entry, TValue value, const TPutCondition& cond, bool updateCnt) {
+#ifdef TRACE
+        Trace(Cerr, "PutEntry in entry %zd value %s under condition %s\n", entry - &Data[0],
+                     ~ValueToString<TValue>(value), ~cond.ToString());
+#endif
+
+        if (EXPECT_FALSE(IsCopying(entry->Value))) {
             Copy(entry);
             return FULL_TABLE;
         }
@@ -481,10 +523,10 @@ namespace NLFHT {
             // we need guaranty, that it's not deleted
             ReadValueAndRef(oldValue, entry->Value);
         } else {
-            oldValue = PureValue((TValue)entry->Value);
+            oldValue = PureValue(entry->Value);
         }
-        if (ValueIsDeleted(oldValue) || ValueIsCopied(oldValue)) {
-            UnRefValue(oldValue, otherRefCnt);
+        if (ValueIsDeleted(oldValue) || ValueIsCopied(oldValue))
+        {
             return FULL_TABLE;
         }
 
@@ -534,9 +576,9 @@ namespace NLFHT {
         return RETRY;
     }
 
-    template <class Owner>
-    typename TTable<Owner>::EResult
-    TTable<Owner>::FetchEntry(const TKey& key, TEntryT* entry, bool thereWasKey, bool& keyInstalled, const TPutCondition& cond) {
+    template <class Prt>
+    typename TTable<Prt>::EResult
+    TTable<Prt>::FetchEntry(TKey key, TEntryT* entry, bool thereWasKey, bool& keyInstalled, const TPutCondition& cond) {
         keyInstalled = false;
 
         if (!entry)
@@ -572,9 +614,9 @@ namespace NLFHT {
         return CONTINUE;
     }
 
-    template <class Owner>
-    typename TTable<Owner>::EResult
-    TTable<Owner>::Put(const TKey& key, const TValue& value, const TPutCondition& cond, bool& keyInstalled, bool updateAliveCnt) {
+    template <class Prt>
+    typename TTable<Prt>::EResult
+    TTable<Prt>::Put(TKey key, TValue value, const TPutCondition& cond, bool& keyInstalled, bool updateAliveCnt) {
         OnPut();
 
         const size_t hashValue = Parent->Hash(key);
@@ -617,8 +659,8 @@ namespace NLFHT {
         return result;
     }
 
-    template <class Owner>
-    void TTable<Owner>::DoCopyTask() {
+    template <class Prt>
+    void TTable<Prt>::DoCopyTask() {
         if (EXPECT_FALSE(Parent->Head != this))
             return;
         if (EXPECT_FALSE((size_t)CopiedCnt >= Size)) {
@@ -652,8 +694,11 @@ namespace NLFHT {
             PrepareToDelete();
     }
 
-    template <class Owner>
-    void TTable<Owner>::PrepareToDelete() {
+    template <class Prt>
+    void TTable<Prt>::PrepareToDelete() {
+#ifdef TRACE
+        Trace(Cerr, "PrepareToDelete\n");
+#endif
         AtomicBase currentTableNumber = Parent->TableNumber;
         if (Parent->Head == this && AtomicCas(&Parent->Head, Next, this)) {
             // deleted table from main list
@@ -661,35 +706,15 @@ namespace NLFHT {
             AtomicIncrement(Parent->TableNumber);
             Parent->TableToDeleteNumber = currentTableNumber;
             while (true) {
-                TTable* toDelete = Parent->ToDelete;
+                TTable* toDelete = Parent->HeadToDelete;
                 NextToDelete = toDelete;
-                if (AtomicCas(&Parent->ToDelete, this, toDelete)) {
+                if (AtomicCas(&Parent->HeadToDelete, this, toDelete)) {
+#ifdef TRACE_MEM
+                    Trace(Cerr, "Scheduled to delete table %zd\n", (size_t)this);
+#endif
                     break;
                 }
             }
-        }
-    }
-
-    template <class Owner>
-    void TConstIterator<Owner>::NextEntry() {
-        ++Index;
-
-        while (Table) {
-            for (; Index < Table->Size; Index++) {
-                // it's rather fast to copy small entry
-                const TEntryT& e = Table->Data[Index];
-                if (!KeysAreEqual((TKey)e.Key, TKeyTraits<TKey>::None()) &&
-                    !EXPECT_FALSE(TValueTraits<TValue>::IsCopying((TValue)e.Value)) &&
-                    !ValuesAreEqual((TValue)e.Value, TValueTraits<TValue>::Baby()) &&
-                    !ValuesAreEqual((TValue)e.Value, TValueTraits<TValue>::None()) &&
-                    !ValuesAreEqual((TValue)e.Value, TValueTraits<TValue>::Copied()) &&
-                    !ValuesAreEqual((TValue)e.Value, TValueTraits<TValue>::Deleted()))
-                    break;
-            }
-            if (Index < Table->Size)
-                break;
-            Index = 0;
-            Table = Table->Next;
         }
     }
 

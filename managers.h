@@ -1,16 +1,23 @@
 #include "atomic.h"
 
 namespace NLFHT {
-    template <class K>
-    class TKeyTraits;
-
-    template <class V>
-    class TValueTraits;
-
-    template <class T, class Alloc = DEFAULT_ALLOCATOR(T)>
-    class TBaseManager {
+    // Key and value managers are supposed to be exclusive
+    // property of table. They hold very private infomation.
+    // Copying then would have too complex semantics, that's why
+    // TBaseManager inherits TNonCopyable.
+    template <class Prt>
+    class TBaseManager : NonCopyable {
     public:
-        typedef Alloc TAllocator;
+        typedef Prt TParent;
+
+        TBaseManager(TParent* parent)
+            : Parent(parent)
+        {
+        }
+
+        TParent* GetParent() {
+            return Parent;
+        }
 
         void RegisterThread() {
         }
@@ -21,23 +28,49 @@ namespace NLFHT {
         std::string ToString() {
             return "";
         }
+    private:
+        TParent* Parent;
     };
 
-    template <class K, class Alloc = DEFAULT_ALLOCATOR(K)>
-    class TDefaultKeyManager : public TBaseManager<Alloc, K> {
+    template <class Prt>
+    class TDefaultKeyManager : public TBaseManager<Prt> {
     public:
-        void UnRef(K, size_t = 1) {
+        typedef Prt TParent;
+        typedef typename TParent::TKey TKey;
+
+        TDefaultKeyManager(TParent* parent)
+            : TBaseManager<Prt>(parent)
+        {
+        }
+
+        TKey CloneAndRef(TKey k) {
+            return k;
+        }
+
+        void UnRef(TKey, size_t = 1) {
         }
     };
 
-    template <class V, class Alloc = DEFAULT_ALLOCATOR(V)>
-    class TDefaultValueManager : public TBaseManager<Alloc, V> {
+    template <class Prt>
+    class TDefaultValueManager : public TBaseManager<Prt> {
     public:
-        void ReadAndRef(V& dest, typename TValueTraits<V>::TAtomicValue const& src) {
-            dest = TValueTraits<V>::PureValue(V(src));
+        typedef Prt TParent;
+        typedef typename TParent::TValue TValue;
+
+        TDefaultValueManager(TParent* parent)
+            : TBaseManager<Prt>(parent)
+        {
         }
 
-        void UnRef(V, size_t = 1) {
+        TValue CloneAndRef(TValue v) {
+            return v;
+        }
+
+        void ReadAndRef(TValue& dest, typename TValueTraits<TValue>::TAtomicValue const& src) {
+            dest = TValueTraits<TValue>::PureValue(TValue(src));
+        }
+
+        void UnRef(TValue, size_t = 1) {
         }
     };
 }

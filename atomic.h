@@ -337,18 +337,6 @@ private:
 #define EXPECT_FALSE(Cond) __builtin_expect(!!(Cond), 0)
 #define FORCED_INLINE inline __attribute__ ((always_inline))
 
-inline uint64_t RoundToNext2Power(uint64_t v) {
-    --v;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v |= v >> 32;
-    ++v;
-    return v;
-}
-
 inline size_t CurrentThreadId()
 {
     return (size_t)pthread_self();
@@ -356,3 +344,29 @@ inline size_t CurrentThreadId()
 
 #define __STL_DEFAULT_ALLOCATOR(T) std::allocator<T>
 #define DEFAULT_ALLOCATOR(T) __STL_DEFAULT_ALLOCATOR(T)
+
+template <unsigned N, class T>
+struct TClp2Helper
+{
+    static inline T Calc(T t) throw ()
+    {
+        const T prev = TClp2Helper<N / 2, T>::Calc(t);
+
+        return prev | (prev >> N);
+    }
+};
+
+template <class T>
+struct TClp2Helper<0u, T>
+{
+    static inline T Calc(T t) throw ()
+    {
+        return t - 1;
+    }
+};
+
+template <class T>
+static inline T FastClp2(T t) throw ()
+{
+    return 1 + TClp2Helper<sizeof(T) * 4, T>::Calc(t);
+}

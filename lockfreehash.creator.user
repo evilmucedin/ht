@@ -2,7 +2,7 @@
 <qtcreator>
  <data>
   <variable>GenericProjectManager.GenericProject.Toolchain</variable>
-  <value type="QString">ProjectExplorer.ToolChain.Gcc:/usr/bin/g++.x86-linux-generic-elf-64bit.</value>
+  <value type="QString">ProjectExplorer.ToolChain.Gcc:/usr/bin/g++.x86-linux-generic-elf-32bit.</value>
  </data>
  <data>
   <variable>ProjectExplorer.Project.ActiveTarget</variable>
@@ -42,7 +42,7 @@
    <value key="ProjectExplorer.Target.ActiveDeployConfiguration" type="int">0</value>
    <value key="ProjectExplorer.Target.ActiveRunConfiguration" type="int">0</value>
    <valuemap key="ProjectExplorer.Target.BuildConfiguration.0" type="QVariantMap">
-    <value key="GenericProjectManager.GenericBuildConfiguration.BuildDirectory" type="QString">/home/denis/lockfreehash</value>
+    <value key="GenericProjectManager.GenericBuildConfiguration.BuildDirectory" type="QString">/home/denplusplus/ht</value>
     <value key="ProjectExplorer.BuildCOnfiguration.ToolChain" type="QString">INVALID</value>
     <valuemap key="ProjectExplorer.BuildConfiguration.BuildStepList.0" type="QVariantMap">
      <valuemap key="ProjectExplorer.BuildStepList.Step.0" type="QVariantMap">
@@ -133,7 +133,7 @@
  </data>
  <data>
   <variable>ProjectExplorer.Project.Updater.EnvironmentId</variable>
-  <value type="QString">{feac8bfd-c078-472f-8111-7205bfb5753d}</value>
+  <value type="QString">{08968cc1-a1fb-41a8-9ebb-c7b8be7f15c3}</value>
  </data>
  <data>
   <variable>ProjectExplorer.Project.Updater.FileVersion</variable>
