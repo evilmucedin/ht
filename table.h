@@ -40,13 +40,13 @@ namespace NLFHT {
         typedef typename Prt::Self Parent;
         typedef Table Self;
 
-        typedef typename Parent::Key TKey;
-        typedef typename Parent::Value TValue;
+        typedef typename Parent::Key Key;
+        typedef typename Parent::Value Value;
 
-        typedef typename KeyTraits<TKey>::AtomicKey AtomicKey;
-        typedef typename ValueTraits<TValue>::AtomicValue AtomicValue;
+        typedef typename KeyTraits<Key>::AtomicKey AtomicKey;
+        typedef typename ValueTraits<Value>::AtomicValue AtomicValue;
 
-        typedef Entry<TKey, TValue> EntryT;
+        typedef Entry<Key, Value> EntryT;
         typedef Table<Parent> TableT;
         typedef TableConstIterator<Self> ConstIteratorT;
         typedef TableConstIterator<Self, true> AllKeysConstIterator;
@@ -109,14 +109,14 @@ namespace NLFHT {
         }
 
 // table access methods
-        inline bool GetEntry(EntryT* entry, TValue& value);
-        bool Get(TKey key, size_t hashValue, TValue& value, SearchHint* hint);
+        inline bool GetEntry(EntryT* entry, Value& value);
+        bool Get(Key key, size_t hashValue, Value& value, SearchHint* hint);
 
-        EResult FetchEntry(TKey key, EntryT* entry,
+        EResult FetchEntry(Key key, EntryT* entry,
                            bool thereWasKey, bool& keyIsInstalled, const PutCondition& cond);
-        EResult PutEntry(EntryT* entry, TValue value,
+        EResult PutEntry(EntryT* entry, Value value,
                          const PutCondition& cond, bool updateAliveCnt);
-        EResult Put(TKey key, TValue value,
+        EResult Put(Key key, Value value,
                     const PutCondition& cond, bool& keyInstalled, bool updateAliveCnt = true);
 
         ConstIteratorT Begin() const {
@@ -152,7 +152,7 @@ namespace NLFHT {
 
     private:
         template<bool CheckFull>
-        EntryT* LookUp(TKey key, size_t hash, TKey& foundKey);
+        EntryT* LookUp(Key key, size_t hash, Key& foundKey);
         void Copy(EntryT* entry);
 
         void CreateNext();
@@ -160,75 +160,75 @@ namespace NLFHT {
         void DoCopyTask();
 
         // traits wrappers
-        inline static TKey NoneKey() {
-            return KeyTraits<TKey>::None();
+        inline static Key NoneKey() {
+            return KeyTraits<Key>::None();
         }
-        static TValue CopiedValue() {
-            return ValueTraits<TValue>::Copied();
+        static Value CopiedValue() {
+            return ValueTraits<Value>::Copied();
         }
-        static TValue NoneValue() {
-            return ValueTraits<TValue>::None();
+        static Value NoneValue() {
+            return ValueTraits<Value>::None();
         }
-        static TValue DeletedValue() {
-            return ValueTraits<TValue>::Deleted();
+        static Value DeletedValue() {
+            return ValueTraits<Value>::Deleted();
         }
-        static TValue BabyValue() {
-            return ValueTraits<TValue>::Baby();
+        static Value BabyValue() {
+            return ValueTraits<Value>::Baby();
         }
 
-        FORCED_INLINE bool ValueIsNone(TValue value) {
+        FORCED_INLINE bool ValueIsNone(Value value) {
             return ValuesAreEqual(value, NoneValue());
         }
-        FORCED_INLINE bool ValueIsDeleted(TValue value) {
+        FORCED_INLINE bool ValueIsDeleted(Value value) {
             return ValuesAreEqual(value, DeletedValue());
         }
-        FORCED_INLINE bool ValueIsBaby(TValue value) {
+        FORCED_INLINE bool ValueIsBaby(Value value) {
             return ValuesAreEqual(value, BabyValue());
         }
-        FORCED_INLINE bool ValueIsCopied(TValue value)
+        FORCED_INLINE bool ValueIsCopied(Value value)
         {
             return ValuesAreEqual(value, CopiedValue());
         }
 
-        FORCED_INLINE bool KeyIsNone(TKey key)
+        FORCED_INLINE bool KeyIsNone(Key key)
         {
             return KeysAreEqual(key, NoneKey());
         }
-        FORCED_INLINE bool KeysAreEqual(TKey lft, TKey rgh) const
+        FORCED_INLINE bool KeysAreEqual(Key lft, Key rgh) const
         {
             return m_Parent->m_KeysAreEqual(lft, rgh);
         }
-        FORCED_INLINE bool ValuesAreEqual(TValue lft, TValue rgh) const
+        FORCED_INLINE bool ValuesAreEqual(Value lft, Value rgh) const
         {
             return m_Parent->m_ValuesAreEqual(lft, rgh);
         }
 
-        inline static bool IsCopying(TValue value) {
-            return ValueTraits<TValue>::IsCopying(value);
+        inline static bool IsCopying(Value value) {
+            return ValueTraits<Value>::IsCopying(value);
         }
         inline static void SetCopying(AtomicValue& value) {
-            ValueTraits<TValue>::SetCopying(value);
+            ValueTraits<Value>::SetCopying(value);
         }
-        inline static TValue PureValue(TValue value) {
-            return ValueTraits<TValue>::PureValue(value);
-        }
-
-        inline bool KeysCompareAndSet(AtomicKey& key, TKey newKey, TKey oldKey) {
-            return KeyTraits<TKey>::CompareAndSet(key, newKey, oldKey);
-        }
-        inline bool ValuesCompareAndSet(AtomicValue& value, TValue newValue, TValue oldValue) {
-            return ValueTraits<TValue>::CompareAndSet(value, newValue, oldValue);
+        inline static Value PureValue(Value value) {
+            return ValueTraits<Value>::PureValue(value);
         }
 
-        inline void UnRefKey(TKey key, size_t cnt = 1)
+        inline bool KeysCompareAndSet(AtomicKey& key, Key newKey, Key oldKey) {
+            return KeyTraits<Key>::CompareAndSet(key, newKey, oldKey);
+        }
+        inline bool ValuesCompareAndSet(AtomicValue& value, Value newValue, Value oldValue) {
+            return ValueTraits<Value>::CompareAndSet(value, newValue, oldValue);
+        }
+
+        inline void UnRefKey(Key key, size_t cnt = 1)
         {
             m_Parent->m_KeyManager.UnRef(key, cnt);
         }
-        inline void ReadValueAndRef(TValue& value, const AtomicValue& atomicValue)
+        inline void ReadValueAndRef(Value& value, const AtomicValue& atomicValue)
         {
             m_Parent->m_ValueManager.ReadAndRef(value, atomicValue);
         }
-        inline void UnRefValue(TValue value, size_t cnt = 1) {
+        inline void UnRefValue(Value value, size_t cnt = 1) {
             m_Parent->m_ValueManager.UnRef(value, cnt);
         }
 
@@ -292,8 +292,8 @@ namespace NLFHT {
 
         typedef typename Prt::Self Parent;
 
-        typedef typename Parent::TKey TKey;
-        typedef typename Parent::TValue TValue;
+        typedef typename Parent::Key TKey;
+        typedef typename Parent::Value TValue;
         typedef typename Parent::AtomicKey AtomicKey;
         typedef typename Parent::AtomicValue AtomicValue;
 
@@ -379,7 +379,7 @@ namespace NLFHT {
     template <class Prt>
     template <bool CheckFull>
     typename Table<Prt>::EntryT*
-    Table<Prt>::LookUp(TKey key, size_t hash, TKey& foundKey) {
+    Table<Prt>::LookUp(Key key, size_t hash, Key& foundKey) {
         assert(!KeyIsNone(key));
         OnLookUp();
 
@@ -389,7 +389,7 @@ namespace NLFHT {
         EntryT* returnEntry;
         do {
             EntryT& entry = *i;
-            const TKey entryKey(entry.m_Key);
+            const Key entryKey(entry.m_Key);
 
             if (KeysAreEqual(entryKey, key)) {
                 foundKey = key;
@@ -442,11 +442,11 @@ namespace NLFHT {
     // try to take value from entry
     // return false, if entry was copied
     template <class Prt>
-    inline bool Table<Prt>::GetEntry(EntryT* entry, TValue& value) {
+    inline bool Table<Prt>::GetEntry(EntryT* entry, Value& value) {
 #ifdef TRACE
         Trace(Cerr, "GetEntry in %zd\n", entry - &Data[0]);
 #endif
-        if (EXPECT_FALSE(IsCopying(TValue(entry->m_Value))))
+        if (EXPECT_FALSE(IsCopying(Value(entry->m_Value))))
             Copy(entry);
         ReadValueAndRef(value, entry->m_Value);
         const bool canBeInNextTables = ValueIsCopied(value) || ValueIsDeleted(value);
@@ -456,8 +456,8 @@ namespace NLFHT {
     // tries to take value corresponding to key from table
     // returns false, if key information was copied
     template <class Prt>
-    inline bool Table<Prt>::Get(TKey key, size_t hashValue, TValue& value, SearchHint*) {
-        TKey foundKey;
+    inline bool Table<Prt>::Get(Key key, size_t hashValue, Value& value, SearchHint*) {
+        Key foundKey;
         EntryT* entry = LookUp<false>(key, hashValue, foundKey);
 
         // remember current head number before checking copy state
@@ -501,7 +501,7 @@ namespace NLFHT {
     }
 
     template <class Prt>
-    void Table<Prt>::Copy(Entry<TKey, TValue>* entry) {
+    void Table<Prt>::Copy(Entry<Key, Value>* entry) {
         OnCopy();
 
         SetCopying(entry->m_Value);
@@ -509,7 +509,7 @@ namespace NLFHT {
         // cause nobody does CAS on copying values
 
         // remember the value to copy to the next table
-        TValue entryValue(PureValue(entry->m_Value));
+        Value entryValue(PureValue(entry->m_Value));
 
         if (ValueIsDeleted(entryValue) || ValueIsCopied(entryValue))
             return;
@@ -523,7 +523,7 @@ namespace NLFHT {
         }
 
         TableT* current = this;
-        TKey entryKey = entry->m_Key;
+        Key entryKey = entry->m_Key;
         while (!ValueIsCopied(PureValue(entry->m_Value))) {
             if (!current->m_Next)
                 current->CreateNext();
@@ -539,7 +539,7 @@ namespace NLFHT {
 
     template <class Prt>
     typename Table<Prt>::EResult
-    Table<Prt>::PutEntry(EntryT* entry, TValue value, const PutCondition& cond, bool updateCnt) {
+    Table<Prt>::PutEntry(EntryT* entry, Value value, const PutCondition& cond, bool updateCnt) {
 #ifdef TRACE
         Trace(Cerr, "PutEntry in entry %zd value %s under condition %s\n", entry - &Data[0],
                      ~ValueToString<TValue>(value), ~cond.ToString());
@@ -554,7 +554,7 @@ namespace NLFHT {
         const size_t successRefCnt = shouldRefWhenRead ? 2 : 1;
         const size_t otherRefCnt = successRefCnt - 1;
 
-        TValue oldValue;
+        Value oldValue;
         if (shouldRefWhenRead) {
             // we want to compare with oldValue
             // we need guaranty, that it's not deleted
@@ -615,7 +615,7 @@ namespace NLFHT {
 
     template <class Prt>
     typename Table<Prt>::EResult
-    Table<Prt>::FetchEntry(TKey key, EntryT* entry, bool thereWasKey, bool& keyInstalled, const PutCondition& cond) {
+    Table<Prt>::FetchEntry(Key key, EntryT* entry, bool thereWasKey, bool& keyInstalled, const PutCondition& cond) {
         keyInstalled = false;
 
         if (!entry)
@@ -630,7 +630,7 @@ namespace NLFHT {
             return CONTINUE;
 
         // if key is NONE, try to get entry
-        TKey entryKey = entry->m_Key;
+        Key entryKey = entry->m_Key;
         if (KeyIsNone(entryKey)) {
             if (cond.m_When == PutCondition::IF_EXISTS ||
                 cond.m_When == PutCondition::IF_MATCHES)
@@ -653,7 +653,7 @@ namespace NLFHT {
 
     template <class Prt>
     typename Table<Prt>::EResult
-    Table<Prt>::Put(TKey key, TValue value, const PutCondition& cond, bool& keyInstalled, bool updateAliveCnt)
+    Table<Prt>::Put(Key key, Value value, const PutCondition& cond, bool& keyInstalled, bool updateAliveCnt)
     {
         OnPut();
 
@@ -666,7 +666,7 @@ namespace NLFHT {
 #else
         while (RETRY == result) {
 #endif
-            TKey foundKey;
+            Key foundKey;
             entry = LookUp<true>(key, hashValue, foundKey);
             result = FetchEntry(key, entry, !KeyIsNone(foundKey), keyInstalled, cond);
 #ifndef NDEBUG
@@ -772,8 +772,8 @@ namespace NLFHT {
         if (!compact) {
             for (size_t i = 0; i < m_Size; ++i)
                 buf << "Entry " << i << ": "
-                    << "(" << KeyToString<TKey>((TKey)m_Data[i].Key)
-                    << "; " << ValueToString<TValue>((TValue)m_Data[i].Value)
+                    << "(" << KeyToString<Key>((Key)m_Data[i].Key)
+                    << "; " << ValueToString<Value>((Value)m_Data[i].Value)
                     << ")\n";
         }
 
