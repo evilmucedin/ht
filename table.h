@@ -50,7 +50,7 @@ namespace NLFHT {
         typedef Table<Parent> TableT;
         typedef TableConstIterator<Self> ConstIteratorT;
         typedef TableConstIterator<Self, true> AllKeysConstIterator;
-        typedef typename Parent::TPutCondition PutCondition;
+        typedef typename Parent::PutCondition PutCondition;
         typedef typename Parent::TSearchHint SearchHint;
 
         enum EResult {
@@ -76,11 +76,11 @@ namespace NLFHT {
         {
             VERIFY(m_Size, "Size must be non-zero\n");
             m_Data.resize(m_Size);
-            const double tooBigDensity = Min(0.7, 2 * m_Parent->Density);
+            const double tooBigDensity = Min(0.7, 2 * m_Parent->m_Density);
             m_UpperKeyCountBound = Min(m_Size, (size_t)(ceil(tooBigDensity * m_Size)));
 
 #ifndef NDEBUG
-            AtomicIncrement(m_Parent->TablesCreated);
+            AtomicIncrement(m_Parent->m_TablesCreated);
 #endif
         }
 
@@ -89,7 +89,7 @@ namespace NLFHT {
             Trace(Cerr, "TTable destructor called\n");
 #endif
 #ifndef NDEBUG
-            AtomicIncrement(m_Parent->TablesDeleted);
+            AtomicIncrement(m_Parent->m_TablesDeleted);
 #endif
         }
 
@@ -185,18 +185,22 @@ namespace NLFHT {
         FORCED_INLINE bool ValueIsBaby(TValue value) {
             return ValuesAreEqual(value, BabyValue());
         }
-        FORCED_INLINE bool ValueIsCopied(TValue value) {
+        FORCED_INLINE bool ValueIsCopied(TValue value)
+        {
             return ValuesAreEqual(value, CopiedValue());
         }
 
-        FORCED_INLINE bool KeyIsNone(TKey key) {
+        FORCED_INLINE bool KeyIsNone(TKey key)
+        {
             return KeysAreEqual(key, NoneKey());
         }
-        FORCED_INLINE bool KeysAreEqual(TKey lft, TKey rgh) const {
-            return m_Parent->KeysAreEqual(lft, rgh);
+        FORCED_INLINE bool KeysAreEqual(TKey lft, TKey rgh) const
+        {
+            return m_Parent->m_KeysAreEqual(lft, rgh);
         }
-        FORCED_INLINE bool ValuesAreEqual(TValue lft, TValue rgh) const {
-            return m_Parent->ValuesAreEqual(lft, rgh);
+        FORCED_INLINE bool ValuesAreEqual(TValue lft, TValue rgh) const
+        {
+            return m_Parent->m_ValuesAreEqual(lft, rgh);
         }
 
         inline static bool IsCopying(TValue value) {
@@ -216,56 +220,66 @@ namespace NLFHT {
             return ValueTraits<TValue>::CompareAndSet(value, newValue, oldValue);
         }
 
-        inline void UnRefKey(TKey key, size_t cnt = 1) {
-            m_Parent->KeyManager.UnRef(key, cnt);
+        inline void UnRefKey(TKey key, size_t cnt = 1)
+        {
+            m_Parent->m_KeyManager.UnRef(key, cnt);
         }
-        inline void ReadValueAndRef(TValue& value, const AtomicValue& atomicValue) {
-            m_Parent->ValueManager.ReadAndRef(value, atomicValue);
+        inline void ReadValueAndRef(TValue& value, const AtomicValue& atomicValue)
+        {
+            m_Parent->m_ValueManager.ReadAndRef(value, atomicValue);
         }
         inline void UnRefValue(TValue value, size_t cnt = 1) {
-            m_Parent->ValueManager.UnRef(value, cnt);
+            m_Parent->m_ValueManager.UnRef(value, cnt);
         }
 
         // guards wrappers
-        void ForbidPrepareToDelete() {
-            m_Parent->Guard->ForbidPrepareToDelete();
+        void ForbidPrepareToDelete()
+        {
+            m_Parent->m_Guard->ForbidPrepareToDelete();
         }
-        void AllowPrepareToDelete() {
-            m_Parent->Guard->AllowPrepareToDelete();
+        void AllowPrepareToDelete()
+        {
+            m_Parent->m_Guard->AllowPrepareToDelete();
         }
-        bool CanPrepareToDelete() {
-            return m_Parent->GuardManager.CanPrepareToDelete();
+        bool CanPrepareToDelete()
+        {
+            return m_Parent->m_GuardManager.CanPrepareToDelete();
         }
-        void IncreaseAliveCnt() {
-            m_Parent->Guard->IncreaseAliveCnt();
+        void IncreaseAliveCnt()
+        {
+            m_Parent->m_Guard->IncreaseAliveCnt();
         }
-        void DecreaseAliveCnt() {
-            m_Parent->Guard->DecreaseAliveCnt();
+        void DecreaseAliveCnt()
+        {
+            m_Parent->m_Guard->DecreaseAliveCnt();
         }
-        void IncreaseKeyCnt() {
-            m_Parent->Guard->IncreaseKeyCnt();
+        void IncreaseKeyCnt()
+        {
+            m_Parent->m_Guard->IncreaseKeyCnt();
         }
-        void ZeroKeyCnt() {
-            m_Parent->GuardManager.ZeroKeyCnt();
+        void ZeroKeyCnt()
+        {
+            m_Parent->m_GuardManager.ZeroKeyCnt();
         }
 
         // JUST TO DEBUG
         void Trace(std::ostream& ostr, const char* format, ...);
 
-        void OnPut() {
-            m_Parent->Guard->OnLocalPut();
+        void OnPut()
+        {
+            m_Parent->m_Guard->OnLocalPut();
         }
         void OnCopy()
         {
-            m_Parent->Guard->OnLocalCopy();
+            m_Parent->m_Guard->OnLocalCopy();
         }
         void OnLookUp()
         {
-            m_Parent->Guard->OnLocalLookUp();
+            m_Parent->m_Guard->OnLocalLookUp();
         }
         void OnDelete()
         {
-            m_Parent->Guard->OnLocalDelete();
+            m_Parent->m_Guard->OnLocalDelete();
         }
     };
 
@@ -394,19 +408,24 @@ namespace NLFHT {
             --probeCnt;
         } while (probeCnt);
 
-        if (EXPECT_FALSE(0 == probeCnt)) {
+        if (EXPECT_FALSE(0 == probeCnt))
+        {
             foundKey = NoneKey();
             returnEntry = 0;
         }
 
-        if (CheckFull) {
+        if (CheckFull)
+        {
             AtomicBase oldCnt;
-            while (!m_IsFullFlag && probeCnt < (oldCnt = m_MinProbeCnt)) {
-                if (AtomicCas(&m_MinProbeCnt, probeCnt, oldCnt)) {
-                    const size_t keysCnt = m_Parent->GuardManager.TotalKeyCnt();
+            while (!m_IsFullFlag && probeCnt < (oldCnt = m_MinProbeCnt))
+            {
+                if (AtomicCas(&m_MinProbeCnt, probeCnt, oldCnt))
+                {
+                    const size_t keysCnt = m_Parent->m_GuardManager.TotalKeyCnt();
 
                     // keysCnt is approximate, that's why we must check that table is absolutely full
-                    if (keysCnt >= m_UpperKeyCountBound) {
+                    if (keysCnt >= m_UpperKeyCountBound)
+                    {
                         m_IsFullFlag = true;
                     }
                 }
@@ -468,15 +487,15 @@ namespace NLFHT {
             return;
         }
 
-        const size_t aliveCnt = Max((AtomicBase)1, m_Parent->GuardManager.TotalAliveCnt());
-        const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / m_Parent->Density)));
+        const size_t aliveCnt = Max((AtomicBase)1, m_Parent->m_GuardManager.TotalAliveCnt());
+        const size_t nextSize = Max((size_t)1, (size_t)ceil(aliveCnt * (1. / m_Parent->m_Density)));
         ZeroKeyCnt();
 
         m_Next = m_Parent->CreateTable(m_Parent, nextSize);
 #ifdef TRACE
         Trace(Cerr, "Table done\n");
 #endif
-        m_CopyTaskSize = Max((size_t)logf(m_Size) + 1, 2 * (m_Size / (size_t)(m_Parent->Density * m_Next->m_Size + 1)));
+        m_CopyTaskSize = Max((size_t)logf(m_Size) + 1, 2 * (m_Size / (size_t)(m_Parent->m_Density * m_Next->m_Size + 1)));
 
         m_Lock.Release();
     }
@@ -634,10 +653,11 @@ namespace NLFHT {
 
     template <class Prt>
     typename Table<Prt>::EResult
-    Table<Prt>::Put(TKey key, TValue value, const PutCondition& cond, bool& keyInstalled, bool updateAliveCnt) {
+    Table<Prt>::Put(TKey key, TValue value, const PutCondition& cond, bool& keyInstalled, bool updateAliveCnt)
+    {
         OnPut();
 
-        const size_t hashValue = m_Parent->Hash(key);
+        const size_t hashValue = m_Parent->m_Hash(key);
         EResult result = RETRY;
 
         EntryT* entry = 0;
@@ -678,8 +698,9 @@ namespace NLFHT {
     }
 
     template <class Prt>
-    void Table<Prt>::DoCopyTask() {
-        if (EXPECT_FALSE(m_Parent->Head != this))
+    void Table<Prt>::DoCopyTask()
+    {
+        if (EXPECT_FALSE(m_Parent->m_Head != this))
             return;
         if (EXPECT_FALSE((size_t)m_CopiedCnt >= m_Size)) {
             if (CanPrepareToDelete())
@@ -691,7 +712,7 @@ namespace NLFHT {
         ForbidPrepareToDelete();
 
         // if table is already thrown away your lock is mistake
-        if (EXPECT_FALSE(m_Parent->Head != this)) {
+        if (EXPECT_FALSE(m_Parent->m_Head != this)) {
             AllowPrepareToDelete();
             return;
         }
@@ -717,16 +738,16 @@ namespace NLFHT {
 #ifdef TRACE
         Trace(Cerr, "PrepareToDelete\n");
 #endif
-        AtomicBase currentTableNumber = m_Parent->TableNumber;
-        if (m_Parent->Head == this && AtomicCas(&m_Parent->Head, m_Next, this)) {
+        AtomicBase currentTableNumber = m_Parent->m_TableNumber;
+        if (m_Parent->m_Head == this && AtomicCas(&m_Parent->m_Head, m_Next, this)) {
             // deleted table from main list
             // now it's only thread that has pointer to it
-            AtomicIncrement(m_Parent->TableNumber);
-            m_Parent->TableToDeleteNumber = currentTableNumber;
+            AtomicIncrement(m_Parent->m_TableNumber);
+            m_Parent->m_TableToDeleteNumber = currentTableNumber;
             while (true) {
-                Table* toDelete = m_Parent->HeadToDelete;
+                Table* toDelete = m_Parent->m_HeadToDelete;
                 m_NextToDelete = toDelete;
-                if (AtomicCas(&m_Parent->HeadToDelete, this, toDelete)) {
+                if (AtomicCas(&m_Parent->m_HeadToDelete, this, toDelete)) {
 #ifdef TRACE_MEM
                     Trace(Cerr, "Scheduled to delete table %zd\n", (size_t)this);
 #endif

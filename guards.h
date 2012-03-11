@@ -168,7 +168,8 @@ namespace NLFHT
 
         BaseGuardManager();
 
-        BaseGuard* GetHead() {
+        BaseGuard* GetHead()
+        {
             return m_Head;
         }
         BaseGuard* AcquireGuard();
@@ -190,26 +191,32 @@ namespace NLFHT
         std::string ToString();
 
     private:
-        class HeadHolder : public VolatilePointerWrapper<BaseGuard> {
+        class HeadHolder : public VolatilePointerWrapper<BaseGuard>
+        {
         public:
             HeadHolder(BaseGuardManager* parent)
                 : m_Parent(parent)
             {
             }
-            inline HeadHolder& operator= (BaseGuard* ptr) {
+
+            inline HeadHolder& operator=(BaseGuard* ptr)
+            {
                 Set(ptr);
                 return *this;
             }
 
-            ~HeadHolder() {
+            ~HeadHolder()
+            {
                 BaseGuard* current = Get();
-                while (current) {
+                while (current)
+                {
                     BaseGuard* tmp = current;
                     current = current->Next;
                     delete tmp;
                 }
 #ifndef NDEBUG
-                if (m_Parent->m_GuardsCreated != m_Parent->m_GuardsDeleted) {
+                if (m_Parent->m_GuardsCreated != m_Parent->m_GuardsDeleted)
+                {
                     std::cerr << "GuardsCreated " << m_Parent->m_GuardsCreated << '\n'
                          << "GuardsDeleted " << m_Parent->m_GuardsDeleted << '\n';
                     assert(false && !"Some guard lost");
@@ -232,19 +239,20 @@ namespace NLFHT
 
     private:
         BaseGuard* CreateGuard();
-        virtual BaseGuard* NewGuard() {
+        virtual BaseGuard* NewGuard()
+        {
             return new BaseGuard(this);
         }
     };
 
     template <class Prt>
-    class TGuard : public BaseGuard
+    class Guard : public BaseGuard
     {
     public:
         typedef Prt TParent;
-        typedef typename TParent::TGuardManager GuardManager;
+        typedef typename TParent::GuardManager GuardManager;
 
-        TGuard(GuardManager* parent)
+        Guard(GuardManager* parent)
             : BaseGuard(parent)
         {
         }
