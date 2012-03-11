@@ -447,7 +447,9 @@ namespace NLFHT {
         Trace(Cerr, "GetEntry in %zd\n", entry - &Data[0]);
 #endif
         if (EXPECT_FALSE(IsCopying(Value(entry->m_Value))))
+        {
             Copy(entry);
+        }
         ReadValueAndRef(value, entry->m_Value);
         const bool canBeInNextTables = ValueIsCopied(value) || ValueIsDeleted(value);
         return !canBeInNextTables;
@@ -512,19 +514,24 @@ namespace NLFHT {
         Value entryValue(PureValue(entry->m_Value));
 
         if (ValueIsDeleted(entryValue) || ValueIsCopied(entryValue))
+        {
             return;
-        if (ValueIsBaby(entryValue)) {
+        }
+        if (ValueIsBaby(entryValue))
+        {
             entry->m_Value = CopiedValue();
             return;
         }
-        if (ValueIsNone(entryValue)) {
+        if (ValueIsNone(entryValue))
+        {
             entry->m_Value = DeletedValue();
             return;
         }
 
         TableT* current = this;
         Key entryKey = entry->m_Key;
-        while (!ValueIsCopied(PureValue(entry->m_Value))) {
+        while (!ValueIsCopied(PureValue(entry->m_Value)))
+        {
             if (!current->m_Next)
                 current->CreateNext();
             TableT* target = current->m_Next;
@@ -701,10 +708,15 @@ namespace NLFHT {
     void Table<Prt>::DoCopyTask()
     {
         if (EXPECT_FALSE(m_Parent->m_Head != this))
+        {
             return;
-        if (EXPECT_FALSE((size_t)m_CopiedCnt >= m_Size)) {
+        }
+        if (EXPECT_FALSE((size_t)m_CopiedCnt >= m_Size))
+        {
             if (CanPrepareToDelete())
+            {
                 PrepareToDelete();
+            }
             return;
         }
 
@@ -712,7 +724,8 @@ namespace NLFHT {
         ForbidPrepareToDelete();
 
         // if table is already thrown away your lock is mistake
-        if (EXPECT_FALSE(m_Parent->m_Head != this)) {
+        if (EXPECT_FALSE(m_Parent->m_Head != this))
+        {
             AllowPrepareToDelete();
             return;
         }

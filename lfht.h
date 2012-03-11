@@ -635,7 +635,8 @@ LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::GetImpl(const Key& key, SearchHint* 
 #endif
 
     Guard* lastGuard;
-    if (ShouldSetGuard) {
+    if (ShouldSetGuard)
+    {
         // Value of Guard should be saved on the stack and then restored.
         // The reason - this method can be called by outer LFH table.
         lastGuard = m_Guard;
@@ -650,7 +651,8 @@ LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::GetImpl(const Key& key, SearchHint* 
 #ifdef TRACE_GET
     size_t headLen = 0;
     TTable* cur2 = Head;
-    while (cur2) {
+    while (cur2)
+    {
         Cerr << "-----" << Endl;
         cur2->Print(Cerr, true);
         Cerr << "-----" << Endl;
@@ -659,7 +661,8 @@ LFHashTable<Key, V, KC, HF, VC, A, KM, VM>::GetImpl(const Key& key, SearchHint* 
     }
     size_t deleteLen = 0;
     cur2 = HeadToDelete;
-    while (cur2) {
+    while (cur2)
+    {
         ++deleteLen;
         cur2 = cur2->NextToDelete;
     }
