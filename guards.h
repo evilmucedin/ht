@@ -7,95 +7,111 @@
 
 #include "transp_holder.h"
 
-namespace NLFHT {
-    class TBaseGuard;
+namespace NLFHT
+{
+    class BaseGuard;
 
-    class TGuardable {
-    public:
-        virtual TBaseGuard* AcquireGuard() = 0;
-    };
-
-    class TBaseGuardManager;
-
-    class TBaseGuard : NonCopyable
+    class Guardable
     {
     public:
-        friend class TBaseGuardManager;
-        friend class TThreadGuardTable;
+        virtual BaseGuard* AcquireGuard() = 0;
+    };
+
+    class BaseGuardManager;
+
+    class BaseGuard : NonCopyable
+    {
+    public:
+        friend class BaseGuardManager;
+        friend class ThreadGuardTable;
 
     public:
-        TBaseGuard(TBaseGuardManager* parent);
-        virtual ~TBaseGuard();
+        BaseGuard(BaseGuardManager* parent);
+        virtual ~BaseGuard();
 
         void Release();
-        TBaseGuard* GetNext() {
+        BaseGuard* GetNext()
+        {
             return Next;
         }
 
-        void GuardTable(AtomicBase tableNumber) {
-            GuardedTable = tableNumber;
+        void GuardTable(AtomicBase tableNumber)
+        {
+            m_GuardedTable = tableNumber;
         }
-        void StopGuarding() {
-            GuardedTable = NO_TABLE;
+        void StopGuarding()
+        {
+            m_GuardedTable = NO_TABLE;
         }
 
-        void ForbidPrepareToDelete() {
-            PTDLock = true;
+        void ForbidPrepareToDelete()
+        {
+            m_PTDLock = true;
         }
-        void AllowPrepareToDelete() {
-            PTDLock = false;
+        void AllowPrepareToDelete()
+        {
+            m_PTDLock = false;
         }
 
         // JUST TO DEBUG
 #ifndef NDEBUG
         inline void OnLocalPut() {
-            ++LocalPutCnt;
+            ++m_LocalPutCnt;
         }
         inline void OnLocalDelete() {
-            ++LocalDeleteCnt;
+            ++m_LocalDeleteCnt;
         }
         inline void OnLocalLookUp() {
-            ++LocalLookUpCnt;
+            ++m_LocalLookUpCnt;
         }
         inline void OnLocalCopy() {
-            ++LocalCopyCnt;
+            ++m_LocalCopyCnt;
         }
         inline void OnGlobalGet() {
-            ++GlobalGetCnt;
+            ++m_GlobalGetCnt;
         }
         inline void OnGlobalPut() {
-            ++GlobalPutCnt;
+            ++m_GlobalPutCnt;
         }
 #else
-        inline void OnLocalPut() {
+        inline void OnLocalPut()
+        {
         }
-        inline void OnLocalDelete() {
+        inline void OnLocalDelete()
+        {
         }
-        inline void OnLocalLookUp() {
+        inline void OnLocalLookUp()
+        {
         }
-        inline void OnLocalCopy() {
+        inline void OnLocalCopy()
+        {
         }
-        inline void OnGlobalGet() {
+        inline void OnGlobalGet()
+        {
         }
-        inline void OnGlobalPut() {
+        inline void OnGlobalPut()
+        {
         }
 #endif
 
-        inline void IncreaseAliveCnt() {
-            AtomicIncrement(AliveCnt);
+        inline void IncreaseAliveCnt()
+        {
+            AtomicIncrement(m_AliveCnt);
         }
-        inline void DecreaseAliveCnt() {
-            AtomicDecrement(AliveCnt);
+        inline void DecreaseAliveCnt()
+        {
+            AtomicDecrement(m_AliveCnt);
         }
-        inline void IncreaseKeyCnt() {
-            AtomicIncrement(KeyCnt);
+        inline void IncreaseKeyCnt()
+        {
+            AtomicIncrement(m_KeyCnt);
         }
 
         // JUST TO DEBUG
         virtual std::string ToString();
 
         size_t GetThreadId() const {
-            return ThreadId;
+            return m_ThreadId;
         }
 
     private:
@@ -104,55 +120,58 @@ namespace NLFHT {
     private:
         static const AtomicBase NO_TABLE;
 
-        TBaseGuard* Next;
-        TBaseGuardManager* Parent;
+        BaseGuard* Next;
+        BaseGuardManager* m_Parent;
 
-        volatile size_t GuardedTable;
-        volatile bool PTDLock;
+        volatile size_t m_GuardedTable;
+        volatile bool m_PTDLock;
         // to exclude probability, that data from different
         // tables are in the same cache line
         char Padding[CACHE_LINE_SIZE];
 
 #ifndef NDEBUG
         // JUST TO DEBUG
-        Atomic LocalPutCnt, LocalCopyCnt, LocalDeleteCnt, LocalLookUpCnt;
-        Atomic GlobalPutCnt, GlobalGetCnt;
+        Atomic m_LocalPutCnt, m_LocalCopyCnt, m_LocalDeleteCnt, m_LocalLookUpCnt;
+        Atomic m_GlobalPutCnt, m_GlobalGetCnt;
 #endif
 
-        Atomic AliveCnt;
-        Atomic KeyCnt;
+        Atomic m_AliveCnt;
+        Atomic m_KeyCnt;
 
-        volatile size_t ThreadId;
+        volatile size_t m_ThreadId;
     };
 
-    class TThreadGuardTable : NonCopyable {
+    class ThreadGuardTable : NonCopyable
+    {
     public:
-        static void RegisterTable(TGuardable* pTable);
-        static void ForgetTable(TGuardable* pTable);
+        static void RegisterTable(Guardable* pTable);
+        static void ForgetTable(Guardable* pTable);
 
-        static TBaseGuard* ForTable(TGuardable* pTable) {
-            assert(GuardTable);
-            TGuardTable::const_iterator toTable = GuardTable->find(pTable);
-            assert(toTable != GuardTable->end());
+        static BaseGuard* ForTable(Guardable* pTable)
+        {
+            assert(m_GuardTable);
+            GuardTable::const_iterator toTable = m_GuardTable->find(pTable);
+            assert(toTable != m_GuardTable->end());
             return toTable->second;
         }
     private:
         // yhash_map has too big constant
         // more specialized hash_map should be used here
-        typedef std::unordered_map<TGuardable*, TBaseGuard*> TGuardTable;
-        static NLFHT_THREAD_LOCAL TGuardTable* GuardTable;
+        typedef std::unordered_map<Guardable*, BaseGuard*> GuardTable;
+        static NLFHT_THREAD_LOCAL GuardTable* m_GuardTable;
     };
 
-    class TBaseGuardManager {
+    class BaseGuardManager
+    {
     public:
-        friend class TBaseGuard;
+        friend class BaseGuard;
 
-        TBaseGuardManager();
+        BaseGuardManager();
 
-        TBaseGuard* GetHead() {
-            return Head;
+        BaseGuard* GetHead() {
+            return m_Head;
         }
-        TBaseGuard* AcquireGuard();
+        BaseGuard* AcquireGuard();
 
         size_t GetFirstGuardedTable();
 
@@ -171,80 +190,85 @@ namespace NLFHT {
         std::string ToString();
 
     private:
-        class THeadHolder : public TVolatilePointerWrapper<TBaseGuard> {
+        class HeadHolder : public VolatilePointerWrapper<BaseGuard> {
         public:
-            THeadHolder(TBaseGuardManager* parent)
-                : Parent(parent)
+            HeadHolder(BaseGuardManager* parent)
+                : m_Parent(parent)
             {
             }
-            inline THeadHolder& operator= (TBaseGuard* ptr) {
+            inline HeadHolder& operator= (BaseGuard* ptr) {
                 Set(ptr);
                 return *this;
             }
 
-            ~THeadHolder() {
-                TBaseGuard* current = Get();
+            ~HeadHolder() {
+                BaseGuard* current = Get();
                 while (current) {
-                    TBaseGuard* tmp = current;
+                    BaseGuard* tmp = current;
                     current = current->Next;
                     delete tmp;
                 }
 #ifndef NDEBUG
-                if (Parent->GuardsCreated != Parent->GuardsDeleted) {
-                    std::cerr << "GuardsCreated " << Parent->GuardsCreated << '\n'
-                         << "GuardsDeleted " << Parent->GuardsDeleted << '\n';
+                if (m_Parent->m_GuardsCreated != m_Parent->m_GuardsDeleted) {
+                    std::cerr << "GuardsCreated " << m_Parent->m_GuardsCreated << '\n'
+                         << "GuardsDeleted " << m_Parent->m_GuardsDeleted << '\n';
                     assert(false && !"Some guard lost");
                 }
 #endif
             }
         private:
-            TBaseGuardManager* Parent;
+            BaseGuardManager* m_Parent;
         };
 
-        THeadHolder Head;
+        HeadHolder m_Head;
 
-        Atomic AliveCnt;
-        Atomic KeyCnt;
+        Atomic m_AliveCnt;
+        Atomic m_KeyCnt;
 
 #ifndef NDEBUG
-        Atomic GuardsCreated;
-        Atomic GuardsDeleted;
+        Atomic m_GuardsCreated;
+        Atomic m_GuardsDeleted;
 #endif
 
     private:
-        TBaseGuard* CreateGuard();
-        virtual TBaseGuard* NewGuard() {
-            return new TBaseGuard(this);
+        BaseGuard* CreateGuard();
+        virtual BaseGuard* NewGuard() {
+            return new BaseGuard(this);
         }
     };
 
     template <class Prt>
-    class TGuard : public TBaseGuard {
+    class TGuard : public BaseGuard
+    {
     public:
         typedef Prt TParent;
-        typedef typename TParent::TGuardManager TGuardManager;
+        typedef typename TParent::TGuardManager GuardManager;
 
-        TGuard(TGuardManager* parent)
-            : TBaseGuard(parent)
+        TGuard(GuardManager* parent)
+            : BaseGuard(parent)
         {
         }
     };
 
     template <class Prt>
-    class TGuardManager : public TBaseGuardManager {
+    class GuardManager : public BaseGuardManager
+    {
     public:
         typedef Prt TParent;
-        typedef typename TParent::TGuard TGuard;
+        typedef typename TParent::TGuard Guard;
 
-        TGuardManager(TParent* parent)
-            : Parent(parent)
+        GuardManager(TParent* parent)
+            : m_Parent(parent)
         {
         }
+
     private:
-        TParent* Parent;
+        TParent* m_Parent;
+
     private:
-        virtual TBaseGuard* NewGuard() {
-            return new TGuard(this);
+        virtual BaseGuard* NewGuard()
+        {
+            return new Guard(this);
         }
     };
 }

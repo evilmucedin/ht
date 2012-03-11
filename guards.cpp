@@ -4,96 +4,98 @@
 #include <limits>
 
 namespace NLFHT {
-    const AtomicBase TBaseGuard::NO_TABLE = std::numeric_limits<AtomicBase>::max();
+    const AtomicBase BaseGuard::NO_TABLE = std::numeric_limits<AtomicBase>::max();
 
-    void TThreadGuardTable::RegisterTable(TGuardable* pTable) {
-        if (!GuardTable) {
-           GuardTable = new TGuardTable;
+    void ThreadGuardTable::RegisterTable(Guardable* pTable) {
+        if (!m_GuardTable) {
+           m_GuardTable = new GuardTable;
         }
-        TBaseGuard* guard = pTable->AcquireGuard();
+        BaseGuard* guard = pTable->AcquireGuard();
         assert(guard);
-        guard->ThreadId = CurrentThreadId();
-        assert(GuardTable->find(pTable) == GuardTable->end());
-        (*GuardTable)[pTable] = guard;
+        guard->m_ThreadId = CurrentThreadId();
+        assert(m_GuardTable->find(pTable) == m_GuardTable->end());
+        (*m_GuardTable)[pTable] = guard;
     }
 
-    void TThreadGuardTable::ForgetTable(TGuardable* pTable) {
-        TGuardTable::iterator it = GuardTable->find(pTable);
+    void ThreadGuardTable::ForgetTable(Guardable* pTable) {
+        GuardTable::iterator it = m_GuardTable->find(pTable);
         it->second->Release();
-        GuardTable->erase(it);
+        m_GuardTable->erase(it);
 
-        if (GuardTable->empty()) {
-            delete (TGuardTable*)GuardTable;
-            GuardTable = (TGuardTable*)(0);
+        if (m_GuardTable->empty()) {
+            delete (GuardTable*)m_GuardTable;
+            m_GuardTable = (GuardTable*)(0);
         }
     }
 
-    NLFHT_THREAD_LOCAL TThreadGuardTable::TGuardTable *TThreadGuardTable::GuardTable = 0;
+    NLFHT_THREAD_LOCAL ThreadGuardTable::GuardTable *ThreadGuardTable::m_GuardTable = 0;
 
-    TBaseGuard::TBaseGuard(TBaseGuardManager* parent)
+    BaseGuard::BaseGuard(BaseGuardManager* parent)
         : Next(0)
-        , Parent(parent)
-        , AliveCnt(0)
-        , KeyCnt(0)
-        , ThreadId(size_t(-1))
+        , m_Parent(parent)
+        , m_AliveCnt(0)
+        , m_KeyCnt(0)
+        , m_ThreadId(size_t(-1))
     {
         Init();
 #ifndef NDEBUG
-        AtomicIncrement(Parent->GuardsCreated);
+        AtomicIncrement(m_Parent->m_GuardsCreated);
 #endif
     }
 
-    TBaseGuard::~TBaseGuard() {
-        assert(ThreadId == size_t(-1));
+    BaseGuard::~BaseGuard()
+    {
+        assert(m_ThreadId == size_t(-1));
 #ifndef NDEBUG
-        AtomicIncrement(Parent->GuardsDeleted);
+        AtomicIncrement(m_Parent->m_GuardsDeleted);
 #endif
     }
 
-    void TBaseGuard::Init() {
-        AliveCnt = 0;
-        KeyCnt = 0;
+    void BaseGuard::Init()
+    {
+        m_AliveCnt = 0;
+        m_KeyCnt = 0;
 
-        GuardedTable = NO_TABLE;
-        PTDLock = false;
+        m_GuardedTable = NO_TABLE;
+        m_PTDLock = false;
 
 #ifndef NDEBUG
         // JUST TO DEBUG
-        LocalPutCnt = 0;
-        LocalCopyCnt = 0;
-        LocalDeleteCnt = 0;
-        LocalLookUpCnt = 0;
-        GlobalPutCnt = 0;
-        GlobalGetCnt = 0;
+        m_LocalPutCnt = 0;
+        m_LocalCopyCnt = 0;
+        m_LocalDeleteCnt = 0;
+        m_LocalLookUpCnt = 0;
+        m_GlobalPutCnt = 0;
+        m_GlobalGetCnt = 0;
 #endif
-        ThreadId = (size_t)-1;
+        m_ThreadId = (size_t)-1;
     }
 
-    void TBaseGuard::Release() {
+    void BaseGuard::Release() {
 #ifdef TRACE_MEM
         Cerr << "Release " << (size_t)(this) << '\n';
 #endif
-        AtomicAdd(Parent->KeyCnt, KeyCnt);
-        AtomicAdd(Parent->AliveCnt, AliveCnt);
+        AtomicAdd(m_Parent->m_KeyCnt, m_KeyCnt);
+        AtomicAdd(m_Parent->m_AliveCnt, m_AliveCnt);
         Init();
     }
 
-    TBaseGuardManager::TBaseGuardManager()
-        : Head(this)
-        , AliveCnt(0)
-        , KeyCnt(0)
+    BaseGuardManager::BaseGuardManager()
+        : m_Head(this)
+        , m_AliveCnt(0)
+        , m_KeyCnt(0)
 #ifndef NDEBUG
-        , GuardsCreated(0)
-        , GuardsDeleted(0)
+        , m_GuardsCreated(0)
+        , m_GuardsDeleted(0)
 #endif
     {
     }
 
-    TBaseGuard* TBaseGuardManager::AcquireGuard() {
-        for (TBaseGuard* current = Head; current; current = current->Next)
-            if (current->ThreadId == size_t(-1)) {
+    BaseGuard* BaseGuardManager::AcquireGuard() {
+        for (BaseGuard* current = m_Head; current; current = current->Next)
+            if (current->m_ThreadId == size_t(-1)) {
                 size_t id = CurrentThreadId();
-                if (AtomicCas((Atomic*)&current->ThreadId, id, size_t(-1))) {
+                if (AtomicCas((Atomic*)&current->m_ThreadId, id, size_t(-1))) {
 #ifdef TRACE_MEM
                     Cerr << "Acquire " << (size_t)current << '\n';
 #endif
@@ -103,62 +105,68 @@ namespace NLFHT {
         return CreateGuard();
     }
 
-    size_t TBaseGuardManager::GetFirstGuardedTable() {
-        size_t result = TBaseGuard::NO_TABLE;
-        for (TBaseGuard* current = Head; current; current = current->Next)
-            if (current->ThreadId != size_t(-1))
-                result = Min(result, (size_t)current->GuardedTable);
+    size_t BaseGuardManager::GetFirstGuardedTable() {
+        size_t result = BaseGuard::NO_TABLE;
+        for (BaseGuard* current = m_Head; current; current = current->Next)
+            if (current->m_ThreadId != size_t(-1))
+                result = Min(result, (size_t)current->m_GuardedTable);
         return result;
     }
 
-    AtomicBase TBaseGuardManager::TotalAliveCnt() {
-        AtomicBase result = AliveCnt;
-        for (TBaseGuard* current = Head; current; current = current->Next)
-            result += current->AliveCnt;
+    AtomicBase BaseGuardManager::TotalAliveCnt() {
+        AtomicBase result = m_AliveCnt;
+        for (BaseGuard* current = m_Head; current; current = current->Next)
+            result += current->m_AliveCnt;
         return result;
     }
 
-    AtomicBase TBaseGuardManager::TotalKeyCnt() {
-        AtomicBase result = KeyCnt;
-        for (TBaseGuard* current = Head; current; current = current->Next)
-            result += current->KeyCnt;
+    AtomicBase BaseGuardManager::TotalKeyCnt()
+    {
+        AtomicBase result = m_KeyCnt;
+        for (BaseGuard* current = m_Head; current; current = current->Next)
+            result += current->m_KeyCnt;
         return result;
     }
 
-    void TBaseGuardManager::ZeroKeyCnt() {
-        for (TBaseGuard* current = Head; current; current = current->Next)
-            current->KeyCnt = 0;
-        KeyCnt = 0;
+    void BaseGuardManager::ZeroKeyCnt()
+    {
+        for (BaseGuard* current = m_Head; current; current = current->Next)
+            current->m_KeyCnt = 0;
+        m_KeyCnt = 0;
     }
 
-    bool TBaseGuardManager::CanPrepareToDelete() {
-        for (TBaseGuard* current = Head; current; current = current->Next)
-            if (current->PTDLock)
+    bool BaseGuardManager::CanPrepareToDelete()
+    {
+        for (BaseGuard* current = m_Head; current; current = current->Next)
+            if (current->m_PTDLock)
                 return false;
         return true;
     }
 
     // JUST TO DEBUG
 
-    std::string TBaseGuard::ToString() {
+    std::string BaseGuard::ToString()
+    {
         std::stringstream tmp;
         tmp << "TGuard " << '\n'
-            << "KeyCnt " << KeyCnt << '\n'
-            << "AliveCnt " << AliveCnt << '\n';
+            << "KeyCnt " << m_KeyCnt << '\n'
+            << "AliveCnt " << m_AliveCnt << '\n';
         return tmp.str();
     }
 
-    std::string TBaseGuardManager::ToString() {
+    std::string BaseGuardManager::ToString()
+    {
         std::stringstream tmp;
         tmp << "GuardManager --------------\n";
-        for (TBaseGuard* current = Head; current; current = current->Next)
+        for (BaseGuard* current = m_Head; current; current = current->Next)
             tmp << current->ToString();
-        tmp << "Common KeyCnt " << KeyCnt << '\n'
-            << "Common AliveCnt " << AliveCnt << '\n';
+        tmp << "Common KeyCnt " << m_KeyCnt << '\n'
+            << "Common AliveCnt " << m_AliveCnt << '\n';
         return tmp.str();
     }
 
-    void TBaseGuardManager::PrintStatistics(std::ostream& str) {
+    void BaseGuardManager::PrintStatistics(std::ostream& str)
+    {
 #ifndef NDEBUG
         size_t localPutCnt = 0;
         size_t localCopyCnt = 0;
@@ -166,13 +174,13 @@ namespace NLFHT {
         size_t localLookUpCnt = 0;
         size_t globalPutCnt = 0;
         size_t globalGetCnt = 0;
-        for (TBaseGuard* current = Head; current; current = current->Next) {
-            localPutCnt += current->LocalPutCnt;
-            localCopyCnt += current->LocalCopyCnt;
-            localDeleteCnt += current->LocalDeleteCnt;
-            localLookUpCnt += current->LocalLookUpCnt;
-            globalGetCnt += current->GlobalGetCnt;
-            globalPutCnt += current->GlobalPutCnt;
+        for (BaseGuard* current = m_Head; current; current = current->Next) {
+            localPutCnt += current->m_LocalPutCnt;
+            localCopyCnt += current->m_LocalCopyCnt;
+            localDeleteCnt += current->m_LocalDeleteCnt;
+            localLookUpCnt += current->m_LocalLookUpCnt;
+            globalGetCnt += current->m_GlobalGetCnt;
+            globalPutCnt += current->m_GlobalPutCnt;
         }
 
         str << "LocalPutCnt " << localPutCnt << '\n'
@@ -184,15 +192,16 @@ namespace NLFHT {
 #endif
     }
 
-    TBaseGuard* TBaseGuardManager::CreateGuard() {
-        TBaseGuard* guard = NewGuard();
+    BaseGuard* BaseGuardManager::CreateGuard()
+    {
+        BaseGuard* guard = NewGuard();
 #ifdef TRACE_MEM
         Cerr << "CreateGuard " << (size_t)guard << '\n';
 #endif
-        guard->ThreadId = CurrentThreadId();
+        guard->m_ThreadId = CurrentThreadId();
         while (true) {
-            guard->Next = Head;
-            if (AtomicCas(&Head, guard, guard->Next))
+            guard->Next = m_Head;
+            if (AtomicCas(&m_Head, guard, guard->Next))
                break;
         }
         return guard;

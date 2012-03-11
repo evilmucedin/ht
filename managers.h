@@ -6,22 +6,26 @@ namespace NLFHT {
     // Copying then would have too complex semantics, that's why
     // TBaseManager inherits TNonCopyable.
     template <class Prt>
-    class TBaseManager : NonCopyable {
+    class BaseManager : NonCopyable
+    {
     public:
         typedef Prt TParent;
 
-        TBaseManager(TParent* parent)
+        BaseManager(TParent* parent)
             : Parent(parent)
         {
         }
 
-        TParent* GetParent() {
+        TParent* GetParent()
+        {
             return Parent;
         }
 
-        void RegisterThread() {
+        void RegisterThread()
+        {
         }
-        void ForgetThread() {
+        void ForgetThread()
+        {
         }
 
         // JUST TO DEBUG
@@ -33,13 +37,13 @@ namespace NLFHT {
     };
 
     template <class Prt>
-    class TDefaultKeyManager : public TBaseManager<Prt> {
+    class DefaultKeyManager : public BaseManager<Prt> {
     public:
         typedef Prt TParent;
         typedef typename TParent::TKey TKey;
 
-        TDefaultKeyManager(TParent* parent)
-            : TBaseManager<Prt>(parent)
+        DefaultKeyManager(TParent* parent)
+            : BaseManager<Prt>(parent)
         {
         }
 
@@ -52,13 +56,13 @@ namespace NLFHT {
     };
 
     template <class Prt>
-    class TDefaultValueManager : public TBaseManager<Prt> {
+    class DefaultValueManager : public BaseManager<Prt> {
     public:
         typedef Prt TParent;
         typedef typename TParent::TValue TValue;
 
-        TDefaultValueManager(TParent* parent)
-            : TBaseManager<Prt>(parent)
+        DefaultValueManager(TParent* parent)
+            : BaseManager<Prt>(parent)
         {
         }
 
